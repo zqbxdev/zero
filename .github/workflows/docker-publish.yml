@@ -47,8 +47,8 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # English: Generate Docker image metadata and use the Git tag as the image tag.
-      # 中文：生成 Docker 镜像元数据，并使用 Git tag 作为镜像 tag。
+      # English: Generate Docker image metadata and publish both the Git tag and latest tags.
+      # 中文：生成 Docker 镜像元数据，并同时发布 Git tag 和 latest 两个镜像 tag。
       - name: Extract Docker metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -60,6 +60,9 @@ jobs:
             # English: For tag v1.0.0, publish image tag zqbxdev/zero:v1.0.0.
             # 中文：例如 tag 为 v1.0.0 时，发布镜像 zqbxdev/zero:v1.0.0。
             type=ref,event=tag
+            # English: Also publish zqbxdev/zero:latest for convenient default Compose usage.
+            # 中文：同时发布 zqbxdev/zero:latest，便于 Compose 默认使用。
+            type=raw,value=latest
 
       # English: Build the image from the root Dockerfile and push it to Docker Hub.
       # 中文：使用根目录 Dockerfile 构建镜像，并推送到 Docker Hub。

@@ -6,10 +6,10 @@ services:
     # English: Use the Docker Hub image built from the repository Dockerfile.
     # 中文：使用基于本仓库 Dockerfile 构建并推送到 Docker Hub 的镜像。
     # English: Override ZERO_IMAGE_TAG when running, for example:
-    #          ZERO_IMAGE_TAG=v1.0.0 docker compose up -d
+    #          ZERO_IMAGE_TAG=v0.0.1 docker compose up -d
     # 中文：运行时可覆盖 ZERO_IMAGE_TAG，例如：
-    #       ZERO_IMAGE_TAG=v1.0.0 docker compose up -d
-    image: zqbxdev/zero:${ZERO_IMAGE_TAG:-v1.0.0}
+    #       ZERO_IMAGE_TAG=v0.0.1 docker compose up -d
+    image: zqbxdev/zero:${ZERO_IMAGE_TAG:-latest}
 
     # English: Keep an interactive shell available for ROS2/Gazebo development.
     # 中文：保留交互式 shell，便于 ROS2/Gazebo 开发调试。
