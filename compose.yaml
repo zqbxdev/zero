@@ -1,0 +1,52 @@
+# English: Docker Compose runtime for the image published by GitHub Actions.
+# 中文：用于运行 GitHub Actions 发布镜像的 Docker Compose 配置。
+
+services:
+  zero:
+    # English: Use the Docker Hub image built from the repository Dockerfile.
+    # 中文：使用基于本仓库 Dockerfile 构建并推送到 Docker Hub 的镜像。
+    # English: Override ZERO_IMAGE_TAG when running, for example:
+    #          ZERO_IMAGE_TAG=v1.0.0 docker compose up -d
+    # 中文：运行时可覆盖 ZERO_IMAGE_TAG，例如：
+    #       ZERO_IMAGE_TAG=v1.0.0 docker compose up -d
+    image: zqbxdev/zero:${ZERO_IMAGE_TAG:-v1.0.0}
+
+    # English: Keep an interactive shell available for ROS2/Gazebo development.
+    # 中文：保留交互式 shell，便于 ROS2/Gazebo 开发调试。
+    container_name: zero
+    stdin_open: true
+    tty: true
+    command: /bin/bash
+
+    # English: Host networking helps ROS2 discovery and Gazebo communication on Linux.
+    # 中文：host 网络有助于 Linux 下 ROS2 发现机制和 Gazebo 通信。
+    network_mode: host
+
+    environment:
+      # English: Forward display variables for GUI tools such as Gazebo/RViz.
+      # 中文：转发显示相关变量，用于 Gazebo/RViz 等 GUI 工具。
+      DISPLAY: ${DISPLAY:-:0}
+      QT_X11_NO_MITSHM: "1"
+      XDG_RUNTIME_DIR: /tmp/runtime-root
+
+      # English: Default ROS middleware implementation. Change if needed.
+      # 中文：默认 ROS 中间件实现，可按需修改。
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+
+    volumes:
+      # English: Mount local workspace into the container workspace directory.
+      # 中文：将本地工作区挂载到容器的 workspace 目录。
+      - .:/workspace
+
+      # English: Allow X11 GUI applications to connect to the host display.
+      # 中文：允许 X11 GUI 应用连接宿主机显示服务。
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+
+    # English: Useful for GUI/simulation workloads that need shared memory.
+    # 中文：适用于需要共享内存的 GUI/仿真工作负载。
+    ipc: host
+
+    # English: Grant access to common host devices for simulation/GUI acceleration.
+    # 中文：授予常见宿主机设备访问权限，便于仿真和 GUI 加速。
+    devices:
+      - /dev/dri:/dev/dri
