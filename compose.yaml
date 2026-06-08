@@ -3,13 +3,15 @@
 
 services:
   zero:
-    # English: Use the Docker Hub image built from the repository Dockerfile.
-    # 中文：使用基于本仓库 Dockerfile 构建并推送到 Docker Hub 的镜像。
-    # English: Override ZERO_IMAGE_TAG when running, for example:
-    #          ZERO_IMAGE_TAG=v1.0.0 docker compose up -d
-    # 中文：运行时可覆盖 ZERO_IMAGE_TAG，例如：
-    #       ZERO_IMAGE_TAG=v1.0.0 docker compose up -d
-    image: zqbxdev/zero:${ZERO_IMAGE_TAG:-v1.0.0}
+    # English: Use the Docker Hub image built from the repository Dockerfile; full-latest is the default for physical-machine simulation.
+    # 中文：使用基于本仓库 Dockerfile 构建并推送到 Docker Hub 的镜像；默认 full-latest 用于实体机仿真。
+    # English: Override ZERO_IMAGE_TAG for production or remote coding, for example:
+    #          ZERO_IMAGE_TAG=base-latest docker compose up -d
+    #          ZERO_IMAGE_TAG=dev-latest docker compose up -d
+    # 中文：可覆盖 ZERO_IMAGE_TAG 用于生产或远程编码，例如：
+    #       ZERO_IMAGE_TAG=base-latest docker compose up -d
+    #       ZERO_IMAGE_TAG=dev-latest docker compose up -d
+    image: zqbxdev/zero:${ZERO_IMAGE_TAG:-full-latest}
 
     # English: Keep an interactive shell available for ROS2/Gazebo development.
     # 中文：保留交互式 shell，便于 ROS2/Gazebo 开发调试。
