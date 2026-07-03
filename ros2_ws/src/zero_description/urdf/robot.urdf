@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This URDF was automatically created by SolidWorks to URDF Exporter! Originally created by Stephen Brawner (brawner@gmail.com) 
+     Commit Version: 1.6.0-4-g7f85cfe  Build Version: 1.6.7995.38578
+     For more information, please see http://wiki.ros.org/sw_urdf_exporter -->
+<robot name="zero_usv">
+  <!-- Main hull link and root TF frame for the whole USV model. -->
+  <!-- 主船体 link，也是整艘无人船模型的根 TF 坐标系。 -->
+  <link name="zero_base_link">
+    <!-- Inertial properties exported from SolidWorks; keep unchanged until physical parameters are verified. -->
+    <!-- SolidWorks 导出的惯性参数；在实物参数核对前不要随意修改。 -->
+    <inertial>
+      <origin xyz="7.9421E-06 0.045088 -0.11736" rpy="0 0 0" />
+      <mass value="1.1082" />
+      <inertia
+        ixx="0.0082134"
+        ixy="1.2921E-07"
+        ixz="-8.9546E-07"
+        iyy="0.0097897"
+        iyz="1.606E-05"
+        izz="0.0038758" />
+    </inertial>
+    <!-- Visual geometry controls how the hull appears in RViz/Gazebo. -->
+    <!-- visual 几何用于控制船体在 RViz/Gazebo 中的显示效果。 -->
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/hull/zero_base_link.STL" />
+      </geometry>
+      <material name="hull_white">
+        <color rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <!-- Collision geometry is used by physics engines; currently it reuses the visual mesh. -->
+    <!-- collision 几何用于物理碰撞；当前暂时复用显示用 STL 模型。 -->
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/hull/zero_base_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+
+  <!-- Lidar sensor body mounted on top of the hull. -->
+  <!-- 安装在船体上方的激光雷达本体。 -->
+  <link name="lidar_link">
+    <inertial>
+      <origin xyz="0.018395992409659 0.000233674871345017 0.00147999434963889" rpy="0 0 0" />
+      <mass value="0.0262287989499033" />
+      <inertia
+        ixx="6.04991313992353E-06"
+        ixy="3.02874322805109E-08"
+        ixz="-1.78278600148798E-06"
+        iyy="1.47335238602447E-05"
+        iyz="1.50099526509734E-08"
+        izz="1.83874504860226E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/sensors/lidar.STL" />
+      </geometry>
+      <material name="lidar_gray">
+        <color rgba="0.298039215686275 0.298039215686275 0.298039215686275 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/sensors/lidar.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <!-- Fixed joint: the lidar is rigidly attached to the hull, so it has no moving axis. -->
+  <!-- 固定关节：雷达刚性安装在船体上，因此没有运动轴。 -->
+  <joint name="zero_lidar_fixed_joint" type="fixed">
+    <origin xyz="-0.00040397 0.00015 0.1277" rpy="3.1416 0 1.5708" />
+    <parent link="zero_base_link" />
+    <child link="lidar_link" />
+  </joint>
+
+  <!-- Left propulsion/motor visual body. -->
+  <!-- 左侧推进器/电机的可视化本体。 -->
+  <link name="left_motor_link">
+    <inertial>
+      <origin xyz="-6.93889390390723E-17 -2.08166817117217E-17 0.00149999999999997" rpy="0 0 0" />
+      <mass value="0.00876597344572538" />
+      <inertia
+        ixx="6.55272294398933E-07"
+        ixy="4.60119215732622E-21"
+        ixz="-1.5622785548308E-21"
+        iyy="7.13102337972599E-06"
+        iyz="-4.39063486930125E-22"
+        izz="7.77314671395633E-06" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/propeller/left_motor_link.STL" />
+      </geometry>
+      <material name="motor_white">
+        <color rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/propeller/left_motor_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <!-- Fixed joint from hull to left propulsion body. -->
+  <!-- 船体到左侧推进器本体的固定连接。 -->
+  <joint name="left_motor_fixed_joint" type="fixed">
+    <origin xyz="0.202 0.111 0.04" rpy="1.5708 0 1.5708" />
+    <parent link="zero_base_link" />
+    <child link="left_motor_link" />
+  </joint>
+
+  <!-- Right propulsion/motor visual body; inertial values still need real verification. -->
+  <!-- 右侧推进器/电机的可视化本体；惯性参数后续仍需实物核对。 -->
+  <link name="right_motor_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <mass value="0" />
+      <inertia
+        ixx="0"
+        ixy="0"
+        ixz="0"
+        iyy="0"
+        iyz="0"
+        izz="0" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/propeller/right_motor_link.STL" />
+      </geometry>
+      <material name="motor_white">
+        <color rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/propeller/right_motor_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <!-- Fixed joint from hull to right propulsion body. -->
+  <!-- 船体到右侧推进器本体的固定连接。 -->
+  <joint name="right_motor_fixed_joint" type="fixed">
+    <origin xyz="-0.205 0.111 0.04" rpy="1.5708 0 1.5708" />
+    <parent link="zero_base_link" />
+    <child link="right_motor_link" />
+  </joint>
+</robot>
