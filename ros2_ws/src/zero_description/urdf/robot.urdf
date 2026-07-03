@@ -6,17 +6,17 @@
   <!-- Main hull link and root TF frame for the whole USV model. -->
   <!-- 主船体 link，也是整艘无人船模型的根 TF 坐标系。 -->
   <link name="zero_base_link">
-    <!-- Inertial properties exported from SolidWorks; keep unchanged until physical parameters are verified. -->
-    <!-- SolidWorks 导出的惯性参数；在实物参数核对前不要随意修改。 -->
+    <!-- SolidWorks-derived inertia rotated into the ROS frame: X forward, Y left, Z up. -->
+    <!-- 由 SolidWorks 导出的惯性参数已旋转到 ROS 坐标系：X 向前，Y 向左，Z 向上。 -->
     <inertial>
-      <origin xyz="7.9421E-06 0.045088 -0.11736" rpy="0 0 0" />
+      <origin xyz="-0.045088 7.9421E-06 -0.11736" rpy="0 0 0" />
       <mass value="1.1082" />
       <inertia
-        ixx="0.0082134"
-        ixy="1.2921E-07"
-        ixz="-8.9546E-07"
-        iyy="0.0097897"
-        iyz="1.606E-05"
+        ixx="0.0097897"
+        ixy="-1.2921E-07"
+        ixz="-1.606E-05"
+        iyy="0.0082134"
+        iyz="-8.9546E-07"
         izz="0.0038758" />
     </inertial>
     <!-- Visual geometry controls how the hull appears in RViz/Gazebo. -->
@@ -24,7 +24,7 @@
     <visual>
       <origin
         xyz="0 0 0"
-        rpy="0 0 0" />
+        rpy="0 0 1.5708" />
       <geometry>
         <mesh filename="package://zero_description/meshes/hull/zero_base_link.STL" />
       </geometry>
@@ -37,7 +37,7 @@
     <collision>
       <origin
         xyz="0 0 0"
-        rpy="0 0 0" />
+        rpy="0 0 1.5708" />
       <geometry>
         <mesh filename="package://zero_description/meshes/hull/zero_base_link.STL" />
       </geometry>
@@ -81,7 +81,7 @@
   <!-- Fixed joint: the lidar is rigidly attached to the hull, so it has no moving axis. -->
   <!-- 固定关节：雷达刚性安装在船体上，因此没有运动轴。 -->
   <joint name="zero_lidar_fixed_joint" type="fixed">
-    <origin xyz="-0.00040397 0.00015 0.1277" rpy="3.1416 0 1.5708" />
+    <origin xyz="-0.00015 -0.00040397 0.1277" rpy="3.1416 0 3.1416" />
     <parent link="zero_base_link" />
     <child link="lidar_link" />
   </joint>
@@ -123,7 +123,7 @@
   <!-- Fixed joint from hull to left propulsion body. -->
   <!-- 船体到左侧推进器本体的固定连接。 -->
   <joint name="left_motor_fixed_joint" type="fixed">
-    <origin xyz="0.202 0.111 0.04" rpy="1.5708 0 1.5708" />
+    <origin xyz="-0.111 0.202 0.04" rpy="1.5708 0 3.1416" />
     <parent link="zero_base_link" />
     <child link="left_motor_link" />
   </joint>
@@ -165,7 +165,7 @@
   <!-- Fixed joint from hull to right propulsion body. -->
   <!-- 船体到右侧推进器本体的固定连接。 -->
   <joint name="right_motor_fixed_joint" type="fixed">
-    <origin xyz="-0.205 0.111 0.04" rpy="1.5708 0 1.5708" />
+    <origin xyz="-0.111 -0.205 0.04" rpy="1.5708 0 3.1416" />
     <parent link="zero_base_link" />
     <child link="right_motor_link" />
   </joint>
