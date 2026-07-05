@@ -48,7 +48,7 @@
   <!-- 安装在船体上方的激光雷达本体。 -->
   <link name="lidar_link">
     <inertial>
-      <origin xyz="0.018395992409659 0.000233674871345017 0.00147999434963889" rpy="0 0 0" />
+      <origin xyz="-0.0183959941257542 0.00023352885418041 -0.00147999606627041" rpy="3.1416 0 3.1416" />
       <mass value="0.0262287989499033" />
       <inertia
         ixx="6.04991313992353E-06"
@@ -61,7 +61,7 @@
     <visual>
       <origin
         xyz="0 0 0"
-        rpy="0 0 0" />
+        rpy="3.1416 0 3.1416" />
       <geometry>
         <mesh filename="package://zero_description/meshes/sensors/lidar.STL" />
       </geometry>
@@ -72,16 +72,16 @@
     <collision>
       <origin
         xyz="0 0 0"
-        rpy="0 0 0" />
+        rpy="3.1416 0 3.1416" />
       <geometry>
         <mesh filename="package://zero_description/meshes/sensors/lidar.STL" />
       </geometry>
     </collision>
   </link>
-  <!-- Fixed joint: the lidar is rigidly attached to the hull, so it has no moving axis. -->
-  <!-- 固定关节：雷达刚性安装在船体上，因此没有运动轴。 -->
+  <!-- Fixed joint keeps the lidar frame ROS-aligned; mesh orientation stays in visual/collision. -->
+  <!-- 固定关节让雷达 frame 保持 ROS 坐标语义；模型外观旋转放在 visual/collision 中。 -->
   <joint name="zero_lidar_fixed_joint" type="fixed">
-    <origin xyz="-0.00015 -0.00040397 0.1277" rpy="3.1416 0 3.1416" />
+    <origin xyz="-0.00015 -0.00040397 0.1277" rpy="0 0 0" />
     <parent link="zero_base_link" />
     <child link="lidar_link" />
   </joint>
@@ -90,7 +90,7 @@
   <!-- 左侧推进器/电机的可视化本体。 -->
   <link name="left_motor_link">
     <inertial>
-      <origin xyz="-6.93889390390723E-17 -2.08166817117217E-17 0.00149999999999997" rpy="0 0 0" />
+      <origin xyz="0 0.0015 0" rpy="1.5708 0 3.1416" />
       <mass value="0.00876597344572538" />
       <inertia
         ixx="6.55272294398933E-07"
@@ -103,7 +103,7 @@
     <visual>
       <origin
         xyz="0 0 0"
-        rpy="0 0 0" />
+        rpy="1.5708 0 3.1416" />
       <geometry>
         <mesh filename="package://zero_description/meshes/propeller/left_motor_link.STL" />
       </geometry>
@@ -114,16 +114,16 @@
     <collision>
       <origin
         xyz="0 0 0"
-        rpy="0 0 0" />
+        rpy="1.5708 0 3.1416" />
       <geometry>
         <mesh filename="package://zero_description/meshes/propeller/left_motor_link.STL" />
       </geometry>
     </collision>
   </link>
-  <!-- Fixed joint from hull to left propulsion body. -->
-  <!-- 船体到左侧推进器本体的固定连接。 -->
+  <!-- Fixed joint keeps the motor frame ROS-aligned; mesh orientation stays in visual/collision. -->
+  <!-- 固定关节让电机 frame 保持 ROS 坐标语义；模型外观旋转放在 visual/collision 中。 -->
   <joint name="left_motor_fixed_joint" type="fixed">
-    <origin xyz="-0.111 0.202 0.04" rpy="1.5708 0 3.1416" />
+    <origin xyz="-0.111 0.202 0.04" rpy="0 0 0" />
     <parent link="zero_base_link" />
     <child link="left_motor_link" />
   </joint>
@@ -145,7 +145,7 @@
     <visual>
       <origin
         xyz="0 0 0"
-        rpy="0 0 0" />
+        rpy="1.5708 0 3.1416" />
       <geometry>
         <mesh filename="package://zero_description/meshes/propeller/right_motor_link.STL" />
       </geometry>
@@ -156,16 +156,16 @@
     <collision>
       <origin
         xyz="0 0 0"
-        rpy="0 0 0" />
+        rpy="1.5708 0 3.1416" />
       <geometry>
         <mesh filename="package://zero_description/meshes/propeller/right_motor_link.STL" />
       </geometry>
     </collision>
   </link>
-  <!-- Fixed joint from hull to right propulsion body. -->
-  <!-- 船体到右侧推进器本体的固定连接。 -->
+  <!-- Fixed joint keeps the motor frame ROS-aligned; mesh orientation stays in visual/collision. -->
+  <!-- 固定关节让电机 frame 保持 ROS 坐标语义；模型外观旋转放在 visual/collision 中。 -->
   <joint name="right_motor_fixed_joint" type="fixed">
-    <origin xyz="-0.111 -0.205 0.04" rpy="1.5708 0 3.1416" />
+    <origin xyz="-0.111 -0.205 0.04" rpy="0 0 0" />
     <parent link="zero_base_link" />
     <child link="right_motor_link" />
   </joint>
