@@ -1,16 +1,21 @@
-# 请求无人船高层控制模式。 / Request a high-level USV control mode.
+# Request a high-level USV control mode.
+# 请求无人船高层控制模式。
 uint8 MODE_STOP=1
 uint8 MODE_MANUAL=2
 uint8 MODE_AUTO=3
 
-# 请求的控制模式，使用 MODE_* 常量。 / Requested control mode; use MODE_* constants.
+# Requested control mode; use MODE_* constants.
+# 请求的控制模式，使用 MODE_* 常量。
 uint8 mode
 ---
-# 请求模式被接受时为 true。 / True when the requested mode was accepted.
+# True when the requested mode was accepted.
+# 请求模式被接受时为 true。
 bool accepted
 
-# 请求处理后的当前控制模式。 / Current control mode after handling the request.
+# Current control mode after handling the request.
+# 请求处理后的当前控制模式。
 uint8 current_mode
 
-# 可读结果或拒绝原因。 / Human-readable result or rejection reason.
+# Human-readable result or rejection reason.
+# 可读结果或拒绝原因。
 string message
