@@ -17,4 +17,9 @@ setup(
     description="Fake hardware nodes for the Zero unmanned surface vessel.",
     license="CC-BY-NC-SA-4.0",
     tests_require=["pytest"],
+    entry_points={
+        "console_scripts": [
+            "fake_motor_controller = zero_hardware.fake_motor_controller:main",
+        ],
+    },
 )
