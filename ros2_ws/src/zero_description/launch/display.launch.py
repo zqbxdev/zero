@@ -1,8 +1,8 @@
 import os
 
 # ROS 2 ament package index Python API.
-# Resolves an installed package's share directory by package name.
 # ROS 2 的 ament 包索引 Python 接口。
+# Resolves an installed package's share directory by package name.
 # 用于根据包名查找安装后的 share 资源目录。
 from ament_index_python.packages import get_package_share_directory
 
