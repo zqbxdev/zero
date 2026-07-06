@@ -16,7 +16,6 @@ docs/stm32-lower-computer-developer-guide.md
 ros2_ws/src/zero_control/
 ros2_ws/src/zero_bringup/
 ros2_ws/src/zero_gazebo/
-ros2_ws/src/zero_hardware/
 ros2_ws/src/zero_localization/
 ros2_ws/src/zero_mapping/
 ros2_ws/src/zero_navigation/
