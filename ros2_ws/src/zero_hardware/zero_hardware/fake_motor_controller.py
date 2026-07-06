@@ -13,11 +13,17 @@ class FakeMotorController(Node):
         super().__init__("fake_motor_controller")
         self._model = FakeMotorModel()
         self._period_seconds = 0.2
+        # Publish simulated hardware feedback on the canonical /zero topics.
+        # 在约定的 /zero topic 上发布模拟硬件反馈。
         self._motor_state_pub = self.create_publisher(MotorState, "/zero/motor_state", 10)
         self._battery_state_pub = self.create_publisher(BatteryState, "/zero/battery_state", 10)
         self._status_pub = self.create_publisher(UsvStatus, "/zero/status", 10)
+        # Accept motor commands and mode changes through the shared interface contract.
+        # 通过共享接口契约接收电机命令和模式切换。
         self.create_subscription(MotorCommand, "/zero/motor_command", self._on_motor_command, 10)
         self.create_service(SetControlMode, "/zero/set_control_mode", self._on_set_control_mode)
+        # Advance the fake hardware loop at a human-observable period.
+        # 用便于人工观察的周期推进 fake hardware 闭环。
         self.create_timer(self._period_seconds, self._publish_tick)
 
     def _on_motor_command(self, msg: MotorCommand) -> None:

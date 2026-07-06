@@ -76,12 +76,16 @@ class FakeMotorModel:
 
     def command(self, left_target_rpm: float, right_target_rpm: float) -> None:
         if self.mode is ControlMode.STOP:
+            # STOP ignores new commands so stale input cannot override a stopped state.
+            # STOP 会忽略新命令，避免旧输入覆盖已停止状态。
             return
         self.left_target_rpm = self._clamp(left_target_rpm, self.max_command_rpm)
         self.right_target_rpm = self._clamp(right_target_rpm, self.max_command_rpm)
 
     def update(self, dt_seconds: float) -> MotorFeedback:
         if self.mode is ControlMode.STOP:
+            # STOP ramps targets down instead of clearing them instantly.
+            # STOP 会让目标转速逐步回零，而不是瞬间清零。
             self.left_target_rpm = self._step_toward(
                 self.left_target_rpm,
                 0.0,
@@ -103,6 +107,8 @@ class FakeMotorModel:
             self.right_target_rpm,
             self.max_rpm_step,
         )
+        # Encoders follow actual RPM so command changes are visible only after ramping.
+        # 编码器跟随实际转速，因此命令变化要经过爬坡后才体现在计数中。
         self.left_encoder_count += self._encoder_delta(self.left_actual_rpm, dt_seconds)
         self.right_encoder_count += self._encoder_delta(self.right_actual_rpm, dt_seconds)
         return self.feedback()
