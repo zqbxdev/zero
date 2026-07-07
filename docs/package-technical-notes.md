@@ -4,15 +4,17 @@
 
 ## 包选择规则
 
-纳入清单的规则：必须在 `ros2_ws/src/` 下存在真实 `package.xml`。按当前源码，已有下面三个包：
+纳入清单的规则：必须在 `ros2_ws/src/` 下存在真实 `package.xml`。按当前源码，已有下面五个包：
 
 | 包名 | 类型 | 当前状态 | 主要依据 |
 | --- | --- | --- | --- |
 | `zero_description` | `ament_cmake` 资源和显示包 | 已有 URDF、STL、display launch 和安装规则 | `package.xml`、`CMakeLists.txt`、`launch/display.launch.py`、`urdf/robot.urdf` |
 | `zero_interfaces` | `ament_cmake` 接口包 | 已有 4 个 msg 和 1 个 srv，由 rosidl 生成 | `package.xml`、`CMakeLists.txt`、`msg/*.msg`、`srv/SetControlMode.srv` |
 | `zero_hardware` | `ament_python` fake hardware 包 | 已有 fake motor controller，验证接口闭环，不接真实硬件 | `package.xml`、`setup.py`、`zero_hardware/fake_motor_controller.py`、`zero_hardware/fake_motor_model.py` |
+| `zero_sim` | `ament_python` 最小二维仿真包 | 已有纯二维运动模型和 `/odom`、`odom -> zero_base_link` 发布节点 | `package.xml`、`setup.py`、`zero_sim/simple_usv_model.py`、`zero_sim/simple_usv_simulator.py`、`test/test_simple_usv_model.py` |
+| `zero_bringup` | `ament_python` 启动编排包 | 已有 fake 和 sim 一键启动入口，sim 入口拉起 fake hardware、二维仿真、URDF TF 和 RViz | `package.xml`、`setup.py`、`launch/bringup_fake.launch.py`、`launch/bringup_sim.launch.py` |
 
-未在 `ros2_ws/src/` 下出现 `package.xml` 的名字，例如 `zero_bringup`、`zero_control`、`zero_localization`、`zero_navigation`、`zero_gazebo`、`zero_safety`，都只能视为未实现的未来方向，不能写成当前功能。
+未在 `ros2_ws/src/` 下出现 `package.xml` 的名字，例如 `zero_control`、`zero_localization`、`zero_navigation`、`zero_gazebo`、`zero_safety`，都只能视为未实现的未来方向，不能写成当前功能。
 
 ## zero_description
 
@@ -153,6 +155,100 @@ ros2 service call /zero/set_control_mode zero_interfaces/srv/SetControlMode "{mo
 3. STOP 模式会逐步回零，不是瞬间清零；验收时应观察连续状态反馈。
 4. 运行 ROS2 graph 验证前需要先构建并 source `install/setup.bash`，否则生成的 `zero_interfaces` Python 类型不可用。
 
+## zero_sim
+
+### 关键文件
+
+| 文件 | 作用 |
+| --- | --- |
+| `ros2_ws/src/zero_sim/package.xml` | 声明最小二维仿真包依赖。包含 `ament_python`、`rclpy`、`zero_interfaces`、`builtin_interfaces`、`nav_msgs`、`geometry_msgs` 和 `tf2_ros`。 |
+| `ros2_ws/src/zero_sim/setup.py` | 安装 Python 包，并注册 `simple_usv_simulator` console script。 |
+| `ros2_ws/src/zero_sim/setup.cfg` | 把 ROS2 可执行脚本安装到 `lib/zero_sim`。 |
+| `ros2_ws/src/zero_sim/zero_sim/simple_usv_model.py` | 不依赖 ROS2 的二维平面运动模型，按左右实际 rpm 积分 `x`、`y`、`yaw`，并返回线速度和角速度。 |
+| `ros2_ws/src/zero_sim/zero_sim/simple_usv_simulator.py` | ROS2 节点入口，订阅 `/zero/motor_state`，发布 `/odom` 并广播 `odom -> zero_base_link` TF。 |
+| `ros2_ws/src/zero_sim/test/test_simple_usv_model.py` | 纯模型 pytest 覆盖前进、后退、转向、零 rpm 和非零航向积分。 |
+
+### 设计和技术点
+
+`zero_sim` 当前只实现最小二维运动仿真。节点名是 `simple_usv_simulator`，订阅 `zero_interfaces/msg/MotorState` 的 `/zero/motor_state`，只使用 `left_actual_rpm` 和 `right_actual_rpm`，不绕过 fake hardware 直接读取命令。
+
+纯模型 `simple_usv_model.py` 没有 ROS2 import。默认参数是 `rpm_to_linear_velocity=0.001`、`rpm_difference_to_angular_velocity=0.002`，线速度取左右实际 rpm 平均值乘线速度系数，角速度取 `(right_actual_rpm - left_actual_rpm)` 乘差速角速度系数。yaw 为 0 时左右同正 rpm 会沿 +x 前进；z、roll、pitch 保持 0，orientation 由平面 yaw 转四元数。
+
+`simple_usv_simulator.py` 启动后即使用零 rpm 周期发布 `/odom` 和 `odom -> zero_base_link` TF，因此还没收到第一条 `/zero/motor_state` 时也能看到静止里程计。它只发布局部 `odom` 链路，不发布 `map -> odom` 或 `map -> zero_base_link`。
+
+### 构建和使用命令
+
+```bash
+cd /workspace/ros2_ws
+colcon build --symlink-install --packages-select zero_interfaces zero_hardware zero_sim
+source install/setup.bash
+ros2 run zero_sim simple_usv_simulator
+```
+
+配合 fake hardware 验证：
+
+```bash
+source /workspace/ros2_ws/install/setup.bash
+ros2 run zero_hardware fake_motor_controller
+ros2 topic echo /odom
+ros2 run tf2_ros tf2_echo odom zero_base_link
+```
+
+### Gotchas
+
+1. 这个包不是 Gazebo、水动力、定位、导航、SLAM、路径规划或真实硬件桥接。
+2. `/odom` 来自 `/zero/motor_state` 中的实际 rpm；如果 fake hardware 处于 STOP 且实际 rpm 为 0，位姿会保持静止。
+3. 运行仿真时不能同时启动 `zero_description/launch/display.launch.py` 中的静态 `map -> zero_base_link`，否则 `zero_base_link` 会有两个父坐标系。
+
+## zero_bringup
+
+### 关键文件
+
+| 文件 | 作用 |
+| --- | --- |
+| `ros2_ws/src/zero_bringup/package.xml` | 声明启动编排包依赖。包含 `ament_python`、`launch`、`launch_ros`、`zero_hardware`、`zero_sim`、`zero_description`、`robot_state_publisher` 和 `rviz2`。 |
+| `ros2_ws/src/zero_bringup/setup.py` | 安装 Python 包、包资源标记、`package.xml` 和 fake/sim launch 文件。 |
+| `ros2_ws/src/zero_bringup/setup.cfg` | 保持 `ament_python` 脚本安装路径约定。当前包不注册 console script。 |
+| `ros2_ws/src/zero_bringup/launch/bringup_fake.launch.py` | fake 系统一键启动入口，启动 `zero_hardware` 的 `fake_motor_controller`。 |
+| `ros2_ws/src/zero_bringup/launch/bringup_sim.launch.py` | sim 系统一键启动入口，读取安装后的 `zero_description/urdf/robot.urdf`，启动 `robot_state_publisher`、`fake_motor_controller`、`simple_usv_simulator` 和 `rviz2`。 |
+
+### 设计和技术点
+
+`zero_bringup` 当前只负责启动编排。`bringup_fake.launch.py` 只拉起已有 `zero_hardware` 节点，不重新定义 topic、service、消息、服务、电机模型、硬件通信、控制算法或仿真模型。
+
+fake 系统入口命令是 `ros2 launch zero_bringup bringup_fake.launch.py`。启动后实际 topic 和 service 仍由 `zero_hardware` 的 `fake_motor_controller` 提供：订阅 `/zero/motor_command`，发布 `/zero/motor_state`、`/zero/battery_state`、`/zero/status`，并提供 `/zero/set_control_mode`。
+
+sim 系统入口命令是 `ros2 launch zero_bringup bringup_sim.launch.py`。这个入口不会包含 `zero_description/launch/display.launch.py`，也不会启动 `static_transform_publisher`；URDF 固定关节由 `robot_state_publisher` 发布，船体运动 TF 由 `zero_sim` 发布为 `odom -> zero_base_link`。
+
+### 构建和使用命令
+
+```bash
+cd /workspace/ros2_ws
+colcon build --symlink-install --packages-select zero_interfaces zero_description zero_hardware zero_sim zero_bringup
+source install/setup.bash
+ros2 launch zero_bringup bringup_fake.launch.py
+ros2 launch zero_bringup bringup_sim.launch.py
+```
+
+另开终端验证：
+
+```bash
+source /workspace/ros2_ws/install/setup.bash
+ros2 topic list
+ros2 service list
+ros2 service call /zero/set_control_mode zero_interfaces/srv/SetControlMode "{mode: 2}"
+ros2 topic pub --once /zero/motor_command zero_interfaces/msg/MotorCommand "{left_target_rpm: 120.0, right_target_rpm: 120.0}"
+ros2 topic echo /zero/motor_state
+ros2 service call /zero/set_control_mode zero_interfaces/srv/SetControlMode "{mode: 1}"
+```
+
+### Gotchas
+
+1. 这个包是系统入口整理，不是新的业务节点包；不要在这里放电机模型、硬件通信、控制算法或仿真模型。
+2. launch 文件不 remap `/zero/*` 名称，命名契约继续由 `zero_hardware` 和 `zero_interfaces` 维护。
+3. `bringup_sim.launch.py` 读取安装后的 URDF；修改 `zero_description` 资源后需要重新构建或确认安装资源已更新。
+4. 修改 launch 文件后需要重新构建或确认安装资源已更新，再运行 `ros2 launch`。
+
 ## 维护检查清单
 
 1. 先用 `ros2_ws/src/**/package.xml` 重新生成包清单，再更新本备忘。
@@ -160,5 +256,6 @@ ros2 service call /zero/set_control_mode zero_interfaces/srv/SetControlMode "{mo
 3. 更新 `zero_description` 时，同步检查 `CMakeLists.txt` 安装目录、`display.launch.py` 读取路径、URDF link 名和 mesh 路径。
 4. 更新 URDF 惯性或碰撞模型时，特别复核 `right_motor_link` 的零质量和零惯性，以及 collision 是否仍复用 visual STL。
 5. 更新 `zero_interfaces` 时，同步检查 `package.xml`、`CMakeLists.txt`、每个 msg/srv 字段、单位注释和常量值。
-6. 不从路线图反推当前实现。硬件、bringup、控制、定位、导航、Gazebo、安全和集成测试，只有源码路径和包清单出现后才能写成已实现。
-7. 维护命令只写当前包可以直接对应的构建、launch 或 `ros2 interface show` 命令，不写未来包的假入口。
+6. 更新 `zero_sim` 时，同步检查纯模型测试、`/odom`、`odom -> zero_base_link` TF 和 `bringup_sim.launch.py` 是否仍避免静态 `map -> zero_base_link`。
+7. 不从路线图反推当前实现。硬件、控制、定位、导航、Gazebo、安全和集成测试，只有源码路径和包清单出现后才能写成已实现。
+8. 维护命令只写当前包可以直接对应的构建、launch 或 `ros2 interface show` 命令，不写未来包的假入口。
