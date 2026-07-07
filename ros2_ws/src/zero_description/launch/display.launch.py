@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 
 # ROS 2 ament package index Python API.
 # ROS 2 的 ament 包索引 Python 接口。
@@ -20,10 +20,8 @@ def generate_launch_description():
 
     # Locate and read the installed URDF before passing it to robot_state_publisher.
     # 先定位并读取安装后的 URDF，再传给 robot_state_publisher。
-    pkg_share = get_package_share_directory('zero_description')
-    urdf_file = os.path.join(pkg_share, 'urdf', 'robot.urdf')
-    with open(urdf_file, 'r', encoding='utf-8') as infp:
-        robot_description = infp.read()
+    description_share = Path(get_package_share_directory("zero_description"))
+    robot_description = (description_share / "urdf" / "robot.urdf").read_text(encoding="utf-8")
 
     return LaunchDescription([
         # Publish robot_description and fixed joints from the URDF.
