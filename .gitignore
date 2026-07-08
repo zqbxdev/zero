@@ -13,7 +13,6 @@ docs/development-start-guide.md
 docs/development-standards.md
 docs/stm32-lower-computer-developer-guide.md
 
-ros2_ws/src/zero_control/
 ros2_ws/src/zero_gazebo/
 ros2_ws/src/zero_localization/
 ros2_ws/src/zero_mapping/
