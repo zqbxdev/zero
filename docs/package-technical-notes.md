@@ -4,7 +4,7 @@
 
 ## 包选择规则
 
-纳入清单的规则：必须在 `ros2_ws/src/` 下存在真实 `package.xml`。按当前源码，已有下面六个包：
+纳入清单的规则：必须在 `ros2_ws/src/` 下存在真实 `package.xml`。按当前源码，已有下面七个包：
 
 | 包名 | 类型 | 当前状态 | 主要依据 |
 | --- | --- | --- | --- |
@@ -14,8 +14,9 @@
 | `zero_sim` | `ament_python` 最小二维仿真包 | 已有纯二维运动模型和 `/odom`、`odom -> zero_base_link` 发布节点 | `package.xml`、`setup.py`、`zero_sim/simple_usv_model.py`、`zero_sim/simple_usv_simulator.py`、`test/test_simple_usv_model.py` |
 | `zero_bringup` | `ament_python` 启动编排包 | 已有 fake 和 sim 一键启动入口，sim 入口拉起 fake hardware、二维仿真、URDF TF 和 RViz | `package.xml`、`setup.py`、`launch/bringup_fake.launch.py`、`launch/bringup_sim.launch.py` |
 | `zero_control` | `ament_python` 控制转换包 | 已有 `/cmd_vel` 到 `MotorCommand` 的差速转换节点和纯模型测试 | `package.xml`、`setup.py`、`zero_control/twist_to_motor_command.py`、`zero_control/twist_to_motor_model.py`、`test/test_twist_to_motor_model.py` |
+| `zero_safety` | `ament_python` 命令安全门包 | 已有 `command_guard`，把 raw 电机命令限幅、模式检查、急停锁存和超时归零后发布为受保护命令 | `package.xml`、`setup.py`、`zero_safety/command_guard.py`、`zero_safety/command_guard_model.py`、`test/test_command_guard_model.py` |
 
-未在 `ros2_ws/src/` 下出现 `package.xml` 的名字，例如 `zero_localization`、`zero_navigation`、`zero_gazebo`、`zero_safety`，都只能视为未实现的未来方向，不能写成当前功能。
+未在 `ros2_ws/src/` 下出现 `package.xml` 的名字，例如 `zero_localization`、`zero_navigation`、`zero_gazebo`，都只能视为未实现的未来方向，不能写成当前功能。
 
 ## zero_description
 
@@ -269,7 +270,7 @@ ros2 service call /zero/set_control_mode zero_interfaces/srv/SetControlMode "{mo
 
 转换模型先按 `max_linear_mps` 和 `max_angular_radps` 对输入限幅，再用 `track_width_m` 形成左右差速：`left = linear - angular * track_width_m / 2`，`right = linear + angular * track_width_m / 2`。rpm 按 `max_linear_mps -> max_rpm` 的比例换算，并最终夹到 `[-max_rpm, max_rpm]`。这个符号约定和 `zero_sim` 中 `(right_actual_rpm - left_actual_rpm)` 为正角速度的约定一致。
 
-默认输出 topic 是 `/zero/motor_command_raw`，用于后续接入安全门。单独调试 fake hardware 时，可以通过参数把 `output_topic` 改为 `/zero/motor_command`。该包不实现急停、控制模式保护、命令超时归零、硬件 watchdog、STM32 通信或导航逻辑。
+默认输出 topic 是 `/zero/motor_command_raw`，用于后续接入 `zero_safety`。单独调试 fake hardware 时，可以通过参数把 `output_topic` 改为 `/zero/motor_command`。该包不实现急停、控制模式保护、命令超时归零、硬件 watchdog、STM32 通信或导航逻辑。
 
 ### 构建和使用命令
 
@@ -291,10 +292,63 @@ ros2 topic echo /zero/motor_command --once
 
 ### Gotchas
 
-1. 默认输出是 `/zero/motor_command_raw`，后续接入安全门后不应绕过安全门直发 `/zero/motor_command`。
+1. 默认输出是 `/zero/motor_command_raw`，不能在集成安全门后绕过 `zero_safety` 直发 `/zero/motor_command`。
 2. `zero_control` 不修改也不复制 `zero_interfaces/msg/MotorCommand`，字段契约仍由 `zero_interfaces` 维护。
 3. NaN 或 inf 的 `/cmd_vel` 输入会产生零 rpm，并在节点日志中可观测。
-4. 最终安全归零不属于本包职责；命令超时、急停和模式保护应由后续安全门或硬件层 watchdog 验收。
+4. 最终安全归零不属于本包职责；命令超时、急停和模式保护应由 `zero_safety` 或硬件层 watchdog 验收。
+
+## zero_safety
+
+### 关键文件
+
+| 文件 | 作用 |
+| --- | --- |
+| `ros2_ws/src/zero_safety/package.xml` | 声明安全门包依赖。包含 `ament_python`、`rclpy`、`std_msgs`、`std_srvs` 和 `zero_interfaces`。 |
+| `ros2_ws/src/zero_safety/setup.py` | 安装 Python 包，并注册 `command_guard` console script。 |
+| `ros2_ws/src/zero_safety/setup.cfg` | 把 ROS2 可执行脚本安装到 `lib/zero_safety`。 |
+| `ros2_ws/src/zero_safety/zero_safety/command_guard.py` | ROS2 节点入口，连接 raw 命令、模式状态、急停 topic、release service 和受保护输出。 |
+| `ros2_ws/src/zero_safety/zero_safety/command_guard_model.py` | 不依赖 ROS2 的命令安全门模型，供节点和测试复用。 |
+| `ros2_ws/src/zero_safety/test/test_command_guard_model.py` | 纯模型 pytest 覆盖默认安全状态、超时、急停锁存和 release、限幅、STOP/MANUAL/AUTO 模式来源、非法 rpm 和参数边界。 |
+
+### 设计和技术点
+
+`zero_safety` 当前实现第一版命令安全门。节点名是 `command_guard`，订阅 `zero_interfaces/msg/MotorCommand` 的 `/zero/motor_command_raw`，发布受保护的 `/zero/motor_command`，并把安全干预发布到 `zero_interfaces/msg/UsvStatus` 的 `/zero/safety_status`。控制模式来源是现有 `/zero/status`，这意味着模式权威仍由 fake hardware 或后续真实模式管理节点广播，`zero_safety` 不隐式读取 hardware 内部状态。
+
+急停输入使用 `std_msgs/msg/Bool` 的 `/zero/e_stop`，release 使用 `std_srvs/srv/Trigger` 的 `/zero/release_e_stop`。`command_guard` 重启后默认安全：在收到明确急停状态、有效模式和新鲜命令前持续输出零 rpm。急停置 true 后会锁存 fault；release 只在急停输入为 false、模式允许当前来源、当前命令新鲜有效且左右 rpm 都为 0 时成功。release 成功后会清掉 release 前命令，必须收到 release 之后的新命令才会恢复非零输出。
+
+模式来源通过参数 `input_source` 声明，默认 `auto`。AUTO 模式只允许 `auto` 来源；MANUAL 模式允许 `manual` 或 `debug` 来源；STOP、FAULT 和 UNKNOWN 都会强制输出零 rpm。所有输出都会按 `max_command_rpm` 做最终限幅，命令超时、急停、非法 rpm、模式阻塞和限幅都会反映到 `/zero/safety_status`。
+
+### 构建和使用命令
+
+```bash
+cd /workspace/ros2_ws
+colcon build --symlink-install --packages-select zero_interfaces zero_safety
+source install/setup.bash
+ros2 run zero_safety command_guard
+```
+
+配合 `zero_control` 和 fake hardware 验证：
+
+```bash
+source /workspace/ros2_ws/install/setup.bash
+ros2 run zero_hardware fake_motor_controller
+ros2 run zero_safety command_guard
+ros2 run zero_control twist_to_motor_command --ros-args -p output_topic:=/zero/motor_command_raw
+ros2 topic pub --once /zero/e_stop std_msgs/msg/Bool "{data: false}"
+ros2 service call /zero/set_control_mode zero_interfaces/srv/SetControlMode "{mode: 3}"
+ros2 topic pub --once /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}, angular: {z: 0.1}}"
+ros2 topic echo /zero/motor_command_raw --once
+ros2 topic echo /zero/motor_command --once
+ros2 topic echo /zero/safety_status --once
+```
+
+### Gotchas
+
+1. `/zero/e_stop` 没有收到明确 false 前，`command_guard` 会保持零输出；这是重启默认安全的一部分。
+2. `/zero/release_e_stop` 使用 ROS2 Trigger，只适合当前开发闭环。真实部署需要用 SROS2、隔离的 ROS domain 或硬件权威信号保护 release 权限，不能把普通 ROS graph 发布者视为可信安全边界。
+3. release 前当前命令必须是零 rpm，release 后还需要新的合法命令才会输出非零 rpm，避免解除急停后沿用旧命令立即动作。
+4. 当前 fake hardware 尚未实现 `command_guard` 死亡后的最终命令 watchdog；真实硬件或后续硬件层仍必须在最终命令停止刷新时归零。
+5. 当前 `zero_bringup` 入口尚未自动启动 `zero_control` 或 `zero_safety`；完整链路验收需要手动启动，或后续另行更新 launch 编排。
 
 ## 维护检查清单
 
@@ -304,5 +358,6 @@ ros2 topic echo /zero/motor_command --once
 4. 更新 URDF 惯性或碰撞模型时，特别复核 `right_motor_link` 的零质量和零惯性，以及 collision 是否仍复用 visual STL。
 5. 更新 `zero_interfaces` 时，同步检查 `package.xml`、`CMakeLists.txt`、每个 msg/srv 字段、单位注释和常量值。
 6. 更新 `zero_sim` 时，同步检查纯模型测试、`/odom`、`odom -> zero_base_link` TF 和 `bringup_sim.launch.py` 是否仍避免静态 `map -> zero_base_link`。
-7. 不从路线图反推当前实现。硬件、安全、定位、导航、Gazebo 和集成测试，只有源码路径和包清单出现后才能写成已实现。
-8. 维护命令只写当前包可以直接对应的构建、launch 或 `ros2 interface show` 命令，不写未来包的假入口。
+7. 更新 `zero_safety` 时，同步检查 release 条件、急停锁存、超时归零、模式来源、`/zero/safety_status` 和 raw/protected topic 链路。
+8. 不从路线图反推当前实现。真实硬件、定位、导航、Gazebo 和集成测试，只有源码路径和包清单出现后才能写成已实现。
+9. 维护命令只写当前包可以直接对应的构建、launch 或 `ros2 interface show` 命令，不写未来包的假入口。
