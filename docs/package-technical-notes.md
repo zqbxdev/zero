@@ -4,7 +4,7 @@
 
 ## 包选择规则
 
-纳入清单的规则：必须在 `ros2_ws/src/` 下存在真实 `package.xml`。按当前源码，已有下面五个包：
+纳入清单的规则：必须在 `ros2_ws/src/` 下存在真实 `package.xml`。按当前源码，已有下面六个包：
 
 | 包名 | 类型 | 当前状态 | 主要依据 |
 | --- | --- | --- | --- |
@@ -13,8 +13,9 @@
 | `zero_hardware` | `ament_python` fake hardware 包 | 已有 fake motor controller，验证接口闭环，不接真实硬件 | `package.xml`、`setup.py`、`zero_hardware/fake_motor_controller.py`、`zero_hardware/fake_motor_model.py` |
 | `zero_sim` | `ament_python` 最小二维仿真包 | 已有纯二维运动模型和 `/odom`、`odom -> zero_base_link` 发布节点 | `package.xml`、`setup.py`、`zero_sim/simple_usv_model.py`、`zero_sim/simple_usv_simulator.py`、`test/test_simple_usv_model.py` |
 | `zero_bringup` | `ament_python` 启动编排包 | 已有 fake 和 sim 一键启动入口，sim 入口拉起 fake hardware、二维仿真、URDF TF 和 RViz | `package.xml`、`setup.py`、`launch/bringup_fake.launch.py`、`launch/bringup_sim.launch.py` |
+| `zero_control` | `ament_python` 控制转换包 | 已有 `/cmd_vel` 到 `MotorCommand` 的差速转换节点和纯模型测试 | `package.xml`、`setup.py`、`zero_control/twist_to_motor_command.py`、`zero_control/twist_to_motor_model.py`、`test/test_twist_to_motor_model.py` |
 
-未在 `ros2_ws/src/` 下出现 `package.xml` 的名字，例如 `zero_control`、`zero_localization`、`zero_navigation`、`zero_gazebo`、`zero_safety`，都只能视为未实现的未来方向，不能写成当前功能。
+未在 `ros2_ws/src/` 下出现 `package.xml` 的名字，例如 `zero_localization`、`zero_navigation`、`zero_gazebo`、`zero_safety`，都只能视为未实现的未来方向，不能写成当前功能。
 
 ## zero_description
 
@@ -249,6 +250,52 @@ ros2 service call /zero/set_control_mode zero_interfaces/srv/SetControlMode "{mo
 3. `bringup_sim.launch.py` 读取安装后的 URDF；修改 `zero_description` 资源后需要重新构建或确认安装资源已更新。
 4. 修改 launch 文件后需要重新构建或确认安装资源已更新，再运行 `ros2 launch`。
 
+## zero_control
+
+### 关键文件
+
+| 文件 | 作用 |
+| --- | --- |
+| `ros2_ws/src/zero_control/package.xml` | 声明控制转换包依赖。包含 `ament_python`、`rclpy`、`geometry_msgs` 和 `zero_interfaces`。 |
+| `ros2_ws/src/zero_control/setup.py` | 安装 Python 包，并注册 `twist_to_motor_command` console script。 |
+| `ros2_ws/src/zero_control/setup.cfg` | 把 ROS2 可执行脚本安装到 `lib/zero_control`。 |
+| `ros2_ws/src/zero_control/zero_control/twist_to_motor_model.py` | 不依赖 ROS2 的 `/cmd_vel` 到左右目标 rpm 转换模型，供节点和测试复用。 |
+| `ros2_ws/src/zero_control/zero_control/twist_to_motor_command.py` | ROS2 节点入口，订阅 `/cmd_vel`，发布 `zero_interfaces/msg/MotorCommand`。 |
+| `ros2_ws/src/zero_control/test/test_twist_to_motor_model.py` | 纯模型 pytest 覆盖前进、后退、转向、限幅、零输入、非法数值和参数边界。 |
+
+### 设计和技术点
+
+`zero_control` 当前只负责上位机控制转换。节点名是 `twist_to_motor_command`，订阅 `geometry_msgs/msg/Twist` 的 `/cmd_vel`，把 `linear.x` 和 `angular.z` 转换为 `MotorCommand.msg` 的 `left_target_rpm` 与 `right_target_rpm`。
+
+转换模型先按 `max_linear_mps` 和 `max_angular_radps` 对输入限幅，再用 `track_width_m` 形成左右差速：`left = linear - angular * track_width_m / 2`，`right = linear + angular * track_width_m / 2`。rpm 按 `max_linear_mps -> max_rpm` 的比例换算，并最终夹到 `[-max_rpm, max_rpm]`。这个符号约定和 `zero_sim` 中 `(right_actual_rpm - left_actual_rpm)` 为正角速度的约定一致。
+
+默认输出 topic 是 `/zero/motor_command_raw`，用于后续接入安全门。单独调试 fake hardware 时，可以通过参数把 `output_topic` 改为 `/zero/motor_command`。该包不实现急停、控制模式保护、命令超时归零、硬件 watchdog、STM32 通信或导航逻辑。
+
+### 构建和使用命令
+
+```bash
+cd /workspace/ros2_ws
+colcon build --symlink-install --packages-select zero_interfaces zero_control
+source install/setup.bash
+ros2 run zero_control twist_to_motor_command
+```
+
+单独接 fake hardware 调试时：
+
+```bash
+source /workspace/ros2_ws/install/setup.bash
+ros2 run zero_control twist_to_motor_command --ros-args -p output_topic:=/zero/motor_command
+ros2 topic pub --once /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.3}, angular: {z: 0.0}}"
+ros2 topic echo /zero/motor_command --once
+```
+
+### Gotchas
+
+1. 默认输出是 `/zero/motor_command_raw`，后续接入安全门后不应绕过安全门直发 `/zero/motor_command`。
+2. `zero_control` 不修改也不复制 `zero_interfaces/msg/MotorCommand`，字段契约仍由 `zero_interfaces` 维护。
+3. NaN 或 inf 的 `/cmd_vel` 输入会产生零 rpm，并在节点日志中可观测。
+4. 最终安全归零不属于本包职责；命令超时、急停和模式保护应由后续安全门或硬件层 watchdog 验收。
+
 ## 维护检查清单
 
 1. 先用 `ros2_ws/src/**/package.xml` 重新生成包清单，再更新本备忘。
@@ -257,5 +304,5 @@ ros2 service call /zero/set_control_mode zero_interfaces/srv/SetControlMode "{mo
 4. 更新 URDF 惯性或碰撞模型时，特别复核 `right_motor_link` 的零质量和零惯性，以及 collision 是否仍复用 visual STL。
 5. 更新 `zero_interfaces` 时，同步检查 `package.xml`、`CMakeLists.txt`、每个 msg/srv 字段、单位注释和常量值。
 6. 更新 `zero_sim` 时，同步检查纯模型测试、`/odom`、`odom -> zero_base_link` TF 和 `bringup_sim.launch.py` 是否仍避免静态 `map -> zero_base_link`。
-7. 不从路线图反推当前实现。硬件、控制、定位、导航、Gazebo、安全和集成测试，只有源码路径和包清单出现后才能写成已实现。
+7. 不从路线图反推当前实现。硬件、安全、定位、导航、Gazebo 和集成测试，只有源码路径和包清单出现后才能写成已实现。
 8. 维护命令只写当前包可以直接对应的构建、launch 或 `ros2 interface show` 命令，不写未来包的假入口。
