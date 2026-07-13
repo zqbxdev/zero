@@ -1,0 +1,153 @@
+<?xml version="1.0"?>
+<sdf version="1.8">
+  <model name="zero_usv">
+    <pose>0 0 0 0 0 0</pose>
+    <static>false</static>
+
+    <link name="zero_base_link">
+      <inertial>
+        <mass>12.0</mass>
+        <inertia>
+          <ixx>0.82</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>1.46</iyy>
+          <iyz>0</iyz>
+          <izz>2.10</izz>
+        </inertia>
+      </inertial>
+      <collision name="hull_collision">
+        <geometry>
+          <box>
+            <size>1.20 0.55 0.20</size>
+          </box>
+        </geometry>
+      </collision>
+      <visual name="hull_visual">
+        <geometry>
+          <box>
+            <size>1.20 0.55 0.20</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.86 0.88 0.90 1</ambient>
+          <diffuse>0.86 0.88 0.90 1</diffuse>
+        </material>
+      </visual>
+    </link>
+
+    <link name="lidar_link">
+      <pose relative_to="zero_base_link">0 0 0.20 0 0 0</pose>
+      <inertial>
+        <mass>0.08</mass>
+        <inertia>
+          <ixx>0.00006</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.00006</iyy>
+          <iyz>0</iyz>
+          <izz>0.00008</izz>
+        </inertia>
+      </inertial>
+      <collision name="lidar_collision">
+        <geometry>
+          <cylinder>
+            <radius>0.045</radius>
+            <length>0.04</length>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name="lidar_visual">
+        <geometry>
+          <cylinder>
+            <radius>0.045</radius>
+            <length>0.04</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.12 0.14 0.16 1</ambient>
+          <diffuse>0.12 0.14 0.16 1</diffuse>
+        </material>
+      </visual>
+      <sensor name="zero_lidar" type="gpu_lidar">
+        <topic>/scan</topic>
+        <gz_frame_id>laser_frame</gz_frame_id>
+        <!-- Approximate the real YDLIDAR X2: 360 deg, 0.10-8.0 m, 4-8 Hz, 3K samples/s. -->
+        <update_rate>6</update_rate>
+        <always_on>true</always_on>
+        <visualize>true</visualize>
+        <ray>
+          <scan>
+            <horizontal>
+              <samples>500</samples>
+              <resolution>1</resolution>
+              <min_angle>-3.14159</min_angle>
+              <max_angle>3.14159</max_angle>
+            </horizontal>
+          </scan>
+          <range>
+            <min>0.10</min>
+            <max>8.0</max>
+            <resolution>0.01</resolution>
+          </range>
+          <noise>
+            <type>gaussian</type>
+            <mean>0.0</mean>
+            <stddev>0.01</stddev>
+          </noise>
+        </ray>
+      </sensor>
+    </link>
+
+    <link name="imu_link">
+      <pose relative_to="zero_base_link">0.15 0 0.13 0 0 0</pose>
+      <inertial>
+        <mass>0.05</mass>
+        <inertia>
+          <ixx>0.00002</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.00002</iyy>
+          <iyz>0</iyz>
+          <izz>0.00002</izz>
+        </inertia>
+      </inertial>
+      <collision name="imu_collision">
+        <geometry>
+          <box>
+            <size>0.07 0.05 0.03</size>
+          </box>
+        </geometry>
+      </collision>
+      <visual name="imu_visual">
+        <geometry>
+          <box>
+            <size>0.07 0.05 0.03</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.08 0.30 0.55 1</ambient>
+          <diffuse>0.08 0.30 0.55 1</diffuse>
+        </material>
+      </visual>
+      <sensor name="zero_imu" type="imu">
+        <topic>/imu</topic>
+        <gz_frame_id>imu_link</gz_frame_id>
+        <update_rate>100</update_rate>
+        <always_on>true</always_on>
+      </sensor>
+    </link>
+
+    <joint name="zero_lidar_fixed_joint" type="fixed">
+      <parent>zero_base_link</parent>
+      <child>lidar_link</child>
+    </joint>
+    <frame name="laser_frame" attached_to="lidar_link">
+      <pose>0 0 0 0 0 0</pose>
+    </frame>
+    <joint name="zero_imu_fixed_joint" type="fixed">
+      <parent>zero_base_link</parent>
+      <child>imu_link</child>
+    </joint>
+  </model>
+</sdf>
