@@ -3,7 +3,7 @@
 <package format="3">
   <name>zero_control</name>
   <version>0.1.0</version>
-  <description>Control conversion nodes for the Zero unmanned surface vessel.</description>
+  <description>ROS2 /cmd_vel to raw motor command conversion for the Zero unmanned surface vessel.</description>
   <maintainer email="cnxwzy@gmail.com">cnxwzy</maintainer>
   <license>CC-BY-NC-SA-4.0</license>
 

@@ -14,7 +14,10 @@ setup(
     zip_safe=True,
     maintainer="cnxwzy",
     maintainer_email="cnxwzy@gmail.com",
-    description="Control conversion nodes for the Zero unmanned surface vessel.",
+    description=(
+        "ROS2 /cmd_vel to raw motor command conversion for the Zero unmanned surface "
+        "vessel."
+    ),
     license="CC-BY-NC-SA-4.0",
     tests_require=["pytest"],
     entry_points={
