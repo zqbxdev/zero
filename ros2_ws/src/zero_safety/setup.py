@@ -20,6 +20,7 @@ setup(
     entry_points={
         "console_scripts": [
             "command_guard = zero_safety.command_guard:main",
+            "simulation_safety_initializer = zero_safety.simulation_safety_initializer:main",
         ],
     },
 )
