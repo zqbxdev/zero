@@ -13,16 +13,32 @@ class InvalidTuningError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class TwistToMotorTuning:
-    """V1 simulation tuning for command limits and hull geometry.
+    """
+    Configure V1 simulation command limits and hull geometry.
+
     V1 仿真调参项，用于命令限幅和船体几何参数。
     """
 
+    # Maximum commanded forward body velocity [m/s].
+    # 最大前向船体速度命令 [m/s]。
     max_linear_mps: float = 1.0
+    # Maximum commanded yaw rate [rad/s].
+    # 最大艏向角速度命令 [rad/s]。
     max_angular_radps: float = 1.0
+    # Maximum absolute motor target speed [rpm].
+    # 最大电机目标转速绝对值 [rpm]。
     max_rpm: float = 300.0
+    # Distance between left and right propulsion tracks [m].
+    # 左右推进轨迹间距 [m]。
     track_width_m: float = 0.407
+    # Effective propulsion wheel radius [m].
+    # 等效推进轮半径 [m]。
     wheel_radius_m: float = 0.05
+    # Left motor polarity; must be the exact integer -1 or 1.
+    # 左电机极性；必须是精确整数 -1 或 1。
     left_motor_sign: int = 1
+    # Right motor polarity; must be the exact integer -1 or 1.
+    # 右电机极性；必须是精确整数 -1 或 1。
     right_motor_sign: int = 1
 
     def __post_init__(self) -> None:
@@ -37,13 +53,21 @@ class TwistToMotorTuning:
 
 @dataclass(frozen=True, slots=True)
 class MotorTargets:
+    # Left motor target output-shaft speed [rpm].
+    # 左电机目标输出轴转速 [rpm]。
     left_target_rpm: float
+    # Right motor target output-shaft speed [rpm].
+    # 右电机目标输出轴转速 [rpm]。
     right_target_rpm: float
 
 
 @dataclass(frozen=True, slots=True)
 class BodyTwist:
+    # Forward body velocity along x [m/s].
+    # 沿 x 轴的前向船体速度 [m/s]。
     linear_x: float
+    # Yaw rate around z [rad/s].
+    # 绕 z 轴的艏向角速度 [rad/s]。
     angular_z: float
 
 
@@ -92,10 +116,11 @@ def motor_rpm_to_twist(
     right_target_rpm: float,
     tuning: TwistToMotorTuning | None = None,
 ) -> BodyTwist:
-    """Convert finite measured motor speed to body twist without target-limit clamping.
+    """
+    Convert finite measured motor speed without target-limit clamping.
+
     将有限实测电机转速转换为船体速度，不做目标限幅。
     """
-
     selected_tuning = tuning or TwistToMotorTuning()
     if not isfinite(left_target_rpm) or not isfinite(right_target_rpm):
         return BodyTwist(linear_x=0.0, angular_z=0.0)
