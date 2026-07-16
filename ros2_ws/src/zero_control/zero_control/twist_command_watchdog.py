@@ -8,7 +8,11 @@ from typing import Final, NewType
 from .twist_to_motor_model import BodyTwist
 
 
+# ROS clock timestamp [ns].
+# ROS 时钟时间戳 [ns]。
 RosTimeNanoseconds = NewType("RosTimeNanoseconds", int)
+# Duration threshold [ns].
+# 持续时间阈值 [ns]。
 DurationNanoseconds = NewType("DurationNanoseconds", int)
 
 
@@ -21,8 +25,14 @@ class InvalidWatchdogTuningError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class TwistCommandWatchdogTuning:
+    # /cmd_vel freshness timeout [s].
+    # /cmd_vel 新鲜度超时时间 [s]。
     command_timeout_seconds: float = 0.5
+    # Raw motor command publish rate [Hz].
+    # 原始电机命令发布频率 [Hz]。
     publish_rate_hz: float = 20.0
+    # Exact integer timeout threshold [ns].
+    # 精确整数超时阈值 [ns]。
     command_timeout_nanoseconds: DurationNanoseconds = field(init=False)
 
     def __post_init__(self) -> None:
@@ -37,7 +47,11 @@ class TwistCommandWatchdogTuning:
 
 @dataclass(frozen=True, slots=True)
 class TimestampedTwistCommand:
+    # Accepted body twist command.
+    # 已接受的船体速度命令。
     command: BodyTwist
+    # Local receive timestamp from the ROS clock [ns].
+    # 来自 ROS 时钟的本地接收时间戳 [ns]。
     received_at_nanoseconds: RosTimeNanoseconds
 
 
@@ -46,12 +60,20 @@ ZERO_TWIST: Final = BodyTwist(linear_x=0.0, angular_z=0.0)
 
 @dataclass(slots=True)  # noqa: MUTABLE_OK
 class TwistCommandWatchdog:
-    """Pure Python watchdog retaining command state between ROS callbacks.
+    """
+    Retain command state between ROS callbacks in a pure Python watchdog.
+
     在 ROS 回调间保留命令状态的纯 Python 看门狗。
     """
 
+    # Watchdog timing configuration.
+    # 看门狗时间配置。
     tuning: TwistCommandWatchdogTuning = field(default_factory=TwistCommandWatchdogTuning)
+    # Last accepted command sample, cleared on invalid input or timeout.
+    # 最近一次接受的命令样本；输入无效或超时时清空。
     _last_command: TimestampedTwistCommand | None = field(default=None, init=False)
+    # Last observed ROS time used to reject clock rollback [ns].
+    # 用于拒绝时钟回退的最近 ROS 时间 [ns]。
     _last_observed_time_nanoseconds: RosTimeNanoseconds | None = field(default=None, init=False)
 
     def accept_command(
