@@ -3,15 +3,21 @@ from __future__ import annotations
 import rclpy
 from rclpy.node import Node
 
-from zero_hardware.fake_motor_model import ControlMode, FakeMotorModel, MotorFeedback
 from zero_interfaces.msg import BatteryState, MotorCommand, MotorState, UsvStatus
 from zero_interfaces.srv import SetControlMode
+
+from .fake_motor_model import ControlMode, FakeMotorModel, MotorFeedback
 
 
 class FakeMotorController(Node):
     def __init__(self) -> None:
         super().__init__("fake_motor_controller")
-        self._model = FakeMotorModel()
+        self._model = FakeMotorModel(
+            max_command_rpm=float(self.declare_parameter("max_rpm", 300.0).value),
+            command_timeout_seconds=float(
+                self.declare_parameter("command_timeout_seconds", 0.5).value,
+            ),
+        )
         self._period_seconds = 0.2
         # Publish simulated hardware feedback on the canonical /zero topics.
         # 在约定的 /zero topic 上发布模拟硬件反馈。
@@ -27,7 +33,11 @@ class FakeMotorController(Node):
         self.create_timer(self._period_seconds, self._publish_tick)
 
     def _on_motor_command(self, msg: MotorCommand) -> None:
-        self._model.command(float(msg.left_target_rpm), float(msg.right_target_rpm))
+        self._model.command(
+            float(msg.left_target_rpm),
+            float(msg.right_target_rpm),
+            received_at_seconds=self._now_seconds(),
+        )
 
     def _on_set_control_mode(
         self,
@@ -41,10 +51,14 @@ class FakeMotorController(Node):
         return response
 
     def _publish_tick(self) -> None:
-        feedback = self._model.update(self._period_seconds)
+        now_seconds = self._now_seconds()
+        feedback = self._model.update(
+            dt_seconds=self._period_seconds,
+            now_seconds=now_seconds,
+        )
         self._motor_state_pub.publish(self._motor_state_msg(feedback))
         self._battery_state_pub.publish(self._battery_state_msg())
-        self._status_pub.publish(self._status_msg())
+        self._status_pub.publish(self._status_msg(feedback))
 
     def _motor_state_msg(self, feedback: MotorFeedback) -> MotorState:
         msg = MotorState()
@@ -59,8 +73,8 @@ class FakeMotorController(Node):
         msg.right_pwm_duty = feedback.right_pwm_duty
         msg.left_enabled = feedback.left_enabled
         msg.right_enabled = feedback.right_enabled
-        msg.fault = False
-        msg.fault_message = ""
+        msg.fault = feedback.fault
+        msg.fault_message = feedback.fault_message
         return msg
 
     def _battery_state_msg(self) -> BatteryState:
@@ -74,14 +88,17 @@ class FakeMotorController(Node):
         msg.fault_message = ""
         return msg
 
-    def _status_msg(self) -> UsvStatus:
+    def _status_msg(self, feedback: MotorFeedback) -> UsvStatus:
         msg = UsvStatus()
         msg.stamp = self.get_clock().now().to_msg()
         msg.mode = int(self._model.mode)
-        msg.fault = False
-        msg.fault_code = 0
-        msg.fault_message = ""
+        msg.fault = feedback.fault
+        msg.fault_code = 1 if feedback.fault else 0
+        msg.fault_message = feedback.fault_message
         return msg
+
+    def _now_seconds(self) -> float:
+        return self.get_clock().now().nanoseconds * 1e-9
 
 
 def main(args: list[str] | None = None) -> None:
