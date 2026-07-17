@@ -96,8 +96,14 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     ros-humble-desktop \
     gz-fortress \
+    ros-humble-navigation2 \
+    ros-humble-nav2-bringup \
+    ros-humble-slam-toolbox \
+    ros-humble-teleop-twist-keyboard \
     ros-humble-ros-gz \
-    ros-humble-ros-gz-bridge && \
+    ros-humble-ros-gz-bridge \
+    ros-humble-xacro \
+    ros-humble-rviz2 && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
