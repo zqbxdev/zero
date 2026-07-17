@@ -37,7 +37,7 @@
     </link>
 
     <link name="lidar_link">
-      <pose relative_to="zero_base_link">0 0 0.20 0 0 0</pose>
+      <pose relative_to="zero_base_link">-0.00015 -0.00040397 0.1277 0 0 0</pose>
       <inertial>
         <mass>0.08</mass>
         <inertia>
@@ -73,6 +73,7 @@
         <topic>/scan</topic>
         <gz_frame_id>laser_frame</gz_frame_id>
         <!-- Approximate the real YDLIDAR X2: 360 deg, 0.10-8.0 m, 4-8 Hz, 3K samples/s. -->
+        <!-- 近似真实 YDLIDAR X2：360 度、0.10-8.0 m、4-8 Hz、3K samples/s。 -->
         <update_rate>6</update_rate>
         <always_on>true</always_on>
         <visualize>true</visualize>
@@ -138,6 +139,72 @@
       </sensor>
     </link>
 
+    <link name="left_virtual_wheel_link">
+      <!-- Virtual wheel links exist only to drive Gazebo DiffDrive for the USV hull. -->
+      <!-- 虚拟轮 link 仅用于驱动 USV 船体的 Gazebo DiffDrive。 -->
+      <pose relative_to="zero_base_link">0 0.2035 -0.13 0 0 0</pose>
+      <inertial>
+        <mass>0.02</mass>
+        <inertia>
+          <ixx>0.000013166666667</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.000025</iyy>
+          <iyz>0</iyz>
+          <izz>0.000013166666667</izz>
+        </inertia>
+      </inertial>
+      <collision name="left_virtual_wheel_collision">
+        <pose>0 0 0 1.57079632679 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.05</radius>
+            <length>0.02</length>
+          </cylinder>
+        </geometry>
+      </collision>
+    </link>
+
+    <link name="right_virtual_wheel_link">
+      <pose relative_to="zero_base_link">0 -0.2035 -0.13 0 0 0</pose>
+      <inertial>
+        <mass>0.02</mass>
+        <inertia>
+          <ixx>0.000013166666667</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.000025</iyy>
+          <iyz>0</iyz>
+          <izz>0.000013166666667</izz>
+        </inertia>
+      </inertial>
+      <collision name="right_virtual_wheel_collision">
+        <pose>0 0 0 1.57079632679 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.05</radius>
+            <length>0.02</length>
+          </cylinder>
+        </geometry>
+      </collision>
+    </link>
+
+    <joint name="left_virtual_wheel_joint" type="revolute">
+      <parent>zero_base_link</parent>
+      <child>left_virtual_wheel_link</child>
+      <axis>
+        <xyz>0 1 0</xyz>
+      </axis>
+    </joint>
+
+    <joint name="right_virtual_wheel_joint" type="revolute">
+      <parent>zero_base_link</parent>
+      <child>right_virtual_wheel_link</child>
+      <axis>
+        <xyz>0 1 0</xyz>
+      </axis>
+    </joint>
+
     <joint name="zero_lidar_fixed_joint" type="fixed">
       <parent>zero_base_link</parent>
       <child>lidar_link</child>
@@ -149,5 +216,28 @@
       <parent>zero_base_link</parent>
       <child>imu_link</child>
     </joint>
+
+    <plugin filename="libignition-gazebo-diff-drive-system.so" name="ignition::gazebo::systems::DiffDrive">
+      <!-- Topic, odometry, and limits mirror the ROS bridge and adapter contracts. -->
+      <!-- topic、里程计和限幅与 ROS 桥接及适配器契约保持一致。 -->
+      <left_joint>left_virtual_wheel_joint</left_joint>
+      <right_joint>right_virtual_wheel_joint</right_joint>
+      <wheel_separation>0.407</wheel_separation>
+      <wheel_radius>0.05</wheel_radius>
+      <odom_publish_frequency>50</odom_publish_frequency>
+      <topic>/model/zero_usv/cmd_vel</topic>
+      <odom_topic>/model/zero_usv/odometry</odom_topic>
+      <tf_topic>/model/zero_usv/diff_drive_tf_unbridged</tf_topic>
+      <frame_id>odom</frame_id>
+      <child_frame_id>zero_base_link</child_frame_id>
+      <min_linear_velocity>-1.0</min_linear_velocity>
+      <max_linear_velocity>1.0</max_linear_velocity>
+      <min_angular_velocity>-1.0</min_angular_velocity>
+      <max_angular_velocity>1.0</max_angular_velocity>
+      <min_linear_acceleration>-1.0</min_linear_acceleration>
+      <max_linear_acceleration>1.0</max_linear_acceleration>
+      <min_angular_acceleration>-1.0</min_angular_acceleration>
+      <max_angular_acceleration>1.0</max_angular_acceleration>
+    </plugin>
   </model>
 </sdf>
