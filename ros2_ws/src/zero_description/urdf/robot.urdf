@@ -86,6 +86,20 @@
     <child link="lidar_link" />
   </joint>
 
+  <link name="laser_frame" />
+  <joint name="zero_laser_frame_fixed_joint" type="fixed">
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <parent link="lidar_link" />
+    <child link="laser_frame" />
+  </joint>
+
+  <link name="imu_link" />
+  <joint name="zero_imu_fixed_joint" type="fixed">
+    <origin xyz="0.15 0 0.13" rpy="0 0 0" />
+    <parent link="zero_base_link" />
+    <child link="imu_link" />
+  </joint>
+
   <!-- Left propulsion/motor visual body. -->
   <!-- 左侧推进器/电机的可视化本体。 -->
   <link name="left_motor_link">
