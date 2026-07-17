@@ -1,0 +1,425 @@
+<?xml version="1.0"?>
+<sdf version="1.8">
+  <world name="zero_navigation_world">
+    <!-- SDF poses and sizes in this world use meters and radians. -->
+    <!-- 本 world 内 SDF 位姿和尺寸使用米与弧度。 -->
+    <plugin filename="ignition-gazebo-physics-system" name="ignition::gazebo::systems::Physics" />
+    <plugin filename="ignition-gazebo-user-commands-system" name="ignition::gazebo::systems::UserCommands" />
+    <plugin filename="ignition-gazebo-scene-broadcaster-system" name="ignition::gazebo::systems::SceneBroadcaster" />
+    <plugin filename="ignition-gazebo-sensors-system" name="ignition::gazebo::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin filename="ignition-gazebo-imu-system" name="ignition::gazebo::systems::Imu" />
+
+    <gravity>0 0 -9.81</gravity>
+    <magnetic_field>6.0e-6 2.3e-5 -4.2e-5</magnetic_field>
+    <atmosphere type="adiabatic" />
+
+    <light name="navigation_sun" type="directional">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 12 0 0 0</pose>
+      <diffuse>0.82 0.82 0.78 1</diffuse>
+      <specular>0.18 0.18 0.16 1</specular>
+      <direction>-0.45 0.20 -0.87</direction>
+    </light>
+
+    <model name="water_surface">
+      <!-- Bounded water-plane arena used by navigation characterization tests. -->
+      <!-- 导航表征测试使用的有限水面场地。 -->
+      <static>true</static>
+      <pose>0 0 0 0 0 0</pose>
+      <link name="water_surface_link">
+        <collision name="water_surface_collision">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>18 14</size>
+            </plane>
+          </geometry>
+        </collision>
+        <visual name="water_surface_visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>18 14</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>0.02 0.16 0.24 1</ambient>
+            <diffuse>0.03 0.30 0.43 1</diffuse>
+            <specular>0.02 0.05 0.07 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="boundary_west">
+      <!-- Static boundaries keep navigation scenarios inside the test arena. -->
+      <!-- 静态边界将导航场景限制在测试场地内。 -->
+      <static>true</static>
+      <pose>-9 0 0.5 0 0 0</pose>
+      <link name="boundary_west_link">
+        <collision name="boundary_west_collision">
+          <geometry><box><size>0.30 14 1.0</size></box></geometry>
+        </collision>
+        <visual name="boundary_west_visual">
+          <geometry><box><size>0.30 14 1.0</size></box></geometry>
+          <material>
+            <ambient>0.36 0.38 0.40 1</ambient>
+            <diffuse>0.46 0.48 0.50 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="boundary_east">
+      <static>true</static>
+      <pose>9 0 0.5 0 0 0</pose>
+      <link name="boundary_east_link">
+        <collision name="boundary_east_collision">
+          <geometry><box><size>0.30 14 1.0</size></box></geometry>
+        </collision>
+        <visual name="boundary_east_visual">
+          <geometry><box><size>0.30 14 1.0</size></box></geometry>
+          <material>
+            <ambient>0.36 0.38 0.40 1</ambient>
+            <diffuse>0.46 0.48 0.50 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="boundary_south">
+      <static>true</static>
+      <pose>0 -7 0.5 0 0 0</pose>
+      <link name="boundary_south_link">
+        <collision name="boundary_south_collision">
+          <geometry><box><size>18 0.30 1.0</size></box></geometry>
+        </collision>
+        <visual name="boundary_south_visual">
+          <geometry><box><size>18 0.30 1.0</size></box></geometry>
+          <material>
+            <ambient>0.36 0.38 0.40 1</ambient>
+            <diffuse>0.46 0.48 0.50 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="boundary_north">
+      <static>true</static>
+      <pose>0 7 0.5 0 0 0</pose>
+      <link name="boundary_north_link">
+        <collision name="boundary_north_collision">
+          <geometry><box><size>18 0.30 1.0</size></box></geometry>
+        </collision>
+        <visual name="boundary_north_visual">
+          <geometry><box><size>18 0.30 1.0</size></box></geometry>
+          <material>
+            <ambient>0.36 0.38 0.40 1</ambient>
+            <diffuse>0.46 0.48 0.50 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="shoreline_west_lower">
+      <!-- Shoreline blocks create the non-rectangular drivable water area. -->
+      <!-- 岸线块用于形成非矩形可航行水域。 -->
+      <static>true</static>
+      <pose>-7.5 -0.5 0.6 0 0 0</pose>
+      <link name="shoreline_west_lower_link">
+        <collision name="shoreline_west_lower_collision">
+          <geometry><box><size>1.2 7.0 1.2</size></box></geometry>
+        </collision>
+        <visual name="shoreline_west_lower_visual">
+          <geometry><box><size>1.2 7.0 1.2</size></box></geometry>
+          <material>
+            <ambient>0.33 0.25 0.16 1</ambient>
+            <diffuse>0.45 0.34 0.21 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="shoreline_northwest">
+      <static>true</static>
+      <pose>-5.7 5.5 0.6 0 0 0</pose>
+      <link name="shoreline_northwest_link">
+        <collision name="shoreline_northwest_collision">
+          <geometry><box><size>4.0 1.2 1.2</size></box></geometry>
+        </collision>
+        <visual name="shoreline_northwest_visual">
+          <geometry><box><size>4.0 1.2 1.2</size></box></geometry>
+          <material>
+            <ambient>0.33 0.25 0.16 1</ambient>
+            <diffuse>0.45 0.34 0.21 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="dock_main">
+      <!-- Dock geometry gives navigation tests a fixed near-shore structure. -->
+      <!-- 码头几何为导航测试提供固定近岸结构。 -->
+      <static>true</static>
+      <pose>-4.2 2.8 0.3 0 0 0</pose>
+      <link name="dock_main_link">
+        <collision name="dock_main_collision">
+          <geometry><box><size>3.2 0.8 0.6</size></box></geometry>
+        </collision>
+        <visual name="dock_main_visual">
+          <geometry><box><size>3.2 0.8 0.6</size></box></geometry>
+          <material>
+            <ambient>0.28 0.18 0.09 1</ambient>
+            <diffuse>0.48 0.31 0.15 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="dock_finger">
+      <static>true</static>
+      <pose>-2.8 1.4 0.3 0 0 0</pose>
+      <link name="dock_finger_link">
+        <collision name="dock_finger_collision">
+          <geometry><box><size>0.8 3.6 0.6</size></box></geometry>
+        </collision>
+        <visual name="dock_finger_visual">
+          <geometry><box><size>0.8 3.6 0.6</size></box></geometry>
+          <material>
+            <ambient>0.28 0.18 0.09 1</ambient>
+            <diffuse>0.48 0.31 0.15 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="bypass_obstacle_alpha">
+      <!-- Bypass obstacles force local avoidance instead of a straight-line route. -->
+      <!-- 绕行障碍物迫使局部避障，而不是直线路径。 -->
+      <static>true</static>
+      <pose>0 -1.5 0.5 0 0 0</pose>
+      <link name="bypass_obstacle_alpha_link">
+        <collision name="bypass_obstacle_alpha_collision">
+          <geometry><box><size>1.0 2.0 1.0</size></box></geometry>
+        </collision>
+        <visual name="bypass_obstacle_alpha_visual">
+          <geometry><box><size>1.0 2.0 1.0</size></box></geometry>
+          <material>
+            <ambient>0.70 0.20 0.08 1</ambient>
+            <diffuse>0.88 0.28 0.10 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="bypass_obstacle_beta">
+      <static>true</static>
+      <pose>3.8 1.2 0.5 0 0 0</pose>
+      <link name="bypass_obstacle_beta_link">
+        <collision name="bypass_obstacle_beta_collision">
+          <geometry><box><size>1.0 2.2 1.0</size></box></geometry>
+        </collision>
+        <visual name="bypass_obstacle_beta_visual">
+          <geometry><box><size>1.0 2.2 1.0</size></box></geometry>
+          <material>
+            <ambient>0.63 0.12 0.12 1</ambient>
+            <diffuse>0.82 0.18 0.18 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="box_east">
+      <!-- Colored boxes provide simple LiDAR-visible navigation landmarks. -->
+      <!-- 彩色方块提供可被 LiDAR 观测的简易导航地标。 -->
+      <static>true</static>
+      <pose>5.5 -1.8 0.4 0 0 0</pose>
+      <link name="box_east_link">
+        <collision name="box_east_collision">
+          <geometry><box><size>0.8 0.8 0.8</size></box></geometry>
+        </collision>
+        <visual name="box_east_visual">
+          <geometry><box><size>0.8 0.8 0.8</size></box></geometry>
+          <material>
+            <ambient>0.72 0.58 0.10 1</ambient>
+            <diffuse>0.90 0.74 0.14 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="box_north">
+      <static>true</static>
+      <pose>0.5 3.2 0.4 0 0 0</pose>
+      <link name="box_north_link">
+        <collision name="box_north_collision">
+          <geometry><box><size>1.0 0.8 0.8</size></box></geometry>
+        </collision>
+        <visual name="box_north_visual">
+          <geometry><box><size>1.0 0.8 0.8</size></box></geometry>
+          <material>
+            <ambient>0.16 0.48 0.66 1</ambient>
+            <diffuse>0.20 0.62 0.82 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="box_southwest">
+      <static>true</static>
+      <pose>-4.5 -4.8 0.4 0 0 0</pose>
+      <link name="box_southwest_link">
+        <collision name="box_southwest_collision">
+          <geometry><box><size>0.9 0.9 0.8</size></box></geometry>
+        </collision>
+        <visual name="box_southwest_visual">
+          <geometry><box><size>0.9 0.9 0.8</size></box></geometry>
+          <material>
+            <ambient>0.18 0.58 0.30 1</ambient>
+            <diffuse>0.22 0.72 0.38 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="column_center">
+      <!-- Cylindrical columns diversify obstacle shapes beyond boxes. -->
+      <!-- 圆柱障碍物用于补充方块之外的障碍形状。 -->
+      <static>true</static>
+      <pose>1.2 0.8 0.7 0 0 0</pose>
+      <link name="column_center_link">
+        <collision name="column_center_collision">
+          <geometry>
+            <cylinder><radius>0.35</radius><length>1.4</length></cylinder>
+          </geometry>
+        </collision>
+        <visual name="column_center_visual">
+          <geometry>
+            <cylinder><radius>0.35</radius><length>1.4</length></cylinder>
+          </geometry>
+          <material>
+            <ambient>0.55 0.55 0.58 1</ambient>
+            <diffuse>0.70 0.70 0.74 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="column_north">
+      <static>true</static>
+      <pose>-0.5 4.0 0.8 0 0 0</pose>
+      <link name="column_north_link">
+        <collision name="column_north_collision">
+          <geometry>
+            <cylinder><radius>0.4</radius><length>1.6</length></cylinder>
+          </geometry>
+        </collision>
+        <visual name="column_north_visual">
+          <geometry>
+            <cylinder><radius>0.4</radius><length>1.6</length></cylinder>
+          </geometry>
+          <material>
+            <ambient>0.45 0.46 0.50 1</ambient>
+            <diffuse>0.62 0.63 0.68 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="column_east">
+      <static>true</static>
+      <pose>4.8 -3.5 0.6 0 0 0</pose>
+      <link name="column_east_link">
+        <collision name="column_east_collision">
+          <geometry>
+            <cylinder><radius>0.3</radius><length>1.2</length></cylinder>
+          </geometry>
+        </collision>
+        <visual name="column_east_visual">
+          <geometry>
+            <cylinder><radius>0.3</radius><length>1.2</length></cylinder>
+          </geometry>
+          <material>
+            <ambient>0.50 0.51 0.54 1</ambient>
+            <diffuse>0.68 0.69 0.73 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="buoy_amber">
+      <!-- Buoys mark small round targets inside the navigation arena. -->
+      <!-- 浮标标记导航场地内的小型圆形目标。 -->
+      <static>true</static>
+      <pose>-0.3 -5.4 0.45 0 0 0</pose>
+      <link name="buoy_amber_link">
+        <collision name="buoy_amber_collision">
+          <geometry>
+            <cylinder><radius>0.25</radius><length>0.9</length></cylinder>
+          </geometry>
+        </collision>
+        <visual name="buoy_amber_visual">
+          <geometry>
+            <cylinder><radius>0.25</radius><length>0.9</length></cylinder>
+          </geometry>
+          <material>
+            <ambient>0.82 0.42 0.04 1</ambient>
+            <diffuse>1.0 0.56 0.06 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="buoy_yellow">
+      <static>true</static>
+      <pose>2.5 -4.8 0.45 0 0 0</pose>
+      <link name="buoy_yellow_link">
+        <collision name="buoy_yellow_collision">
+          <geometry>
+            <cylinder><radius>0.25</radius><length>0.9</length></cylinder>
+          </geometry>
+        </collision>
+        <visual name="buoy_yellow_visual">
+          <geometry>
+            <cylinder><radius>0.25</radius><length>0.9</length></cylinder>
+          </geometry>
+          <material>
+            <ambient>0.82 0.72 0.05 1</ambient>
+            <diffuse>1.0 0.90 0.08 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="buoy_green">
+      <static>true</static>
+      <pose>4.8 -0.2 0.45 0 0 0</pose>
+      <link name="buoy_green_link">
+        <collision name="buoy_green_collision">
+          <geometry>
+            <cylinder><radius>0.22</radius><length>0.9</length></cylinder>
+          </geometry>
+        </collision>
+        <visual name="buoy_green_visual">
+          <geometry>
+            <cylinder><radius>0.22</radius><length>0.9</length></cylinder>
+          </geometry>
+          <material>
+            <ambient>0.08 0.58 0.24 1</ambient>
+            <diffuse>0.10 0.78 0.32 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <include>
+      <!-- Spawn the packaged Zero USV model with sensors and DiffDrive plugin. -->
+      <!-- 生成带传感器和 DiffDrive 插件的本包 Zero USV 模型。 -->
+      <uri>model://zero_usv</uri>
+      <name>zero_usv</name>
+      <pose>-2.0 -3.8 0.18 0 0 0</pose>
+    </include>
+  </world>
+</sdf>
