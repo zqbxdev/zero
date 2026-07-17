@@ -1,363 +1,193 @@
 # Zero ROS2 包技术备忘
 
-这份备忘只记录当前源码里已经存在的 ROS2 包和接口。判断依据是 `ros2_ws/src/**/package.xml`，再用同包内的 `CMakeLists.txt`、launch、URDF、msg、srv 文件核对技术细节。现有 `AGENTS.md` 和路线图文档只作为背景参考，若和源码不一致，以源码为准。
+本备忘以 `ros2_ws/src/*/package.xml` 和同包源码为事实来源。当前恰好有九个
+ROS 2 包，`zero_sim` 不存在。Phase 1 complete。Phases 2-5 统一为
+`implementation complete, static/build verified`，runtime 统一为
+`NOT RUN / UNVERIFIED`。
 
-## 包选择规则
+## 当前九包清单
 
-纳入清单的规则：必须在 `ros2_ws/src/` 下存在真实 `package.xml`。按当前源码，已有下面七个包：
+| 包名 | 类型 | 当前源码职责 |
+| --- | --- | --- |
+| `zero_description` | `ament_cmake` | 唯一 ROS URDF、网格、display entry 和固定传感器 frame。 |
+| `zero_interfaces` | `ament_cmake` | 4 个 msg 和 1 个 srv。 |
+| `zero_control` | `ament_python` | `/cmd_vel` watchdog、Twist 到 raw RPM、共享正逆运动学。 |
+| `zero_safety` | `ament_python` | command guard、双状态 fault/freshness、急停锁存和 initializer。 |
+| `zero_hardware` | `ament_python` | fake controller、实际 RPM、仿真 encoder 和最终命令 watchdog。 |
+| `zero_gazebo` | `ament_cmake` + Python | Fortress SDF/world/bridge、actual-RPM adapter、odom-to-TF relay。 |
+| `zero_mapping` | `ament_cmake` | Humble slam_toolbox、mapping RViz、外部 map output policy。 |
+| `zero_navigation` | `ament_cmake` | Humble AMCL、map server、NavFn、DWB、costmap、BT、RViz 资源。 |
+| `zero_bringup` | `ament_python` | shared config 和三个公共 Gazebo launch composition。 |
 
-| 包名 | 类型 | 当前状态 | 主要依据 |
-| --- | --- | --- | --- |
-| `zero_description` | `ament_cmake` 资源和显示包 | 已有 URDF、STL、display launch 和安装规则 | `package.xml`、`CMakeLists.txt`、`launch/display.launch.py`、`urdf/robot.urdf` |
-| `zero_interfaces` | `ament_cmake` 接口包 | 已有 4 个 msg 和 1 个 srv，由 rosidl 生成 | `package.xml`、`CMakeLists.txt`、`msg/*.msg`、`srv/SetControlMode.srv` |
-| `zero_hardware` | `ament_python` fake hardware 包 | 已有 fake motor controller，验证接口闭环，不接真实硬件 | `package.xml`、`setup.py`、`zero_hardware/fake_motor_controller.py`、`zero_hardware/fake_motor_model.py` |
-| `zero_sim` | `ament_python` 最小二维仿真包 | 已有纯二维运动模型和 `/odom`、`odom -> zero_base_link` 发布节点 | `package.xml`、`setup.py`、`zero_sim/simple_usv_model.py`、`zero_sim/simple_usv_simulator.py`、`test/test_simple_usv_model.py` |
-| `zero_bringup` | `ament_python` 启动编排包 | 已有 fake 和 sim 一键启动入口，sim 入口拉起 fake hardware、二维仿真、URDF TF 和 RViz | `package.xml`、`setup.py`、`launch/bringup_fake.launch.py`、`launch/bringup_sim.launch.py` |
-| `zero_control` | `ament_python` 控制转换包 | 已有 `/cmd_vel` 到 `MotorCommand` 的差速转换节点和纯模型测试 | `package.xml`、`setup.py`、`zero_control/twist_to_motor_command.py`、`zero_control/twist_to_motor_model.py`、`test/test_twist_to_motor_model.py` |
-| `zero_safety` | `ament_python` 命令安全门包 | 已有 `command_guard`，把 raw 电机命令限幅、模式检查、急停锁存和超时归零后发布为受保护命令 | `package.xml`、`setup.py`、`zero_safety/command_guard.py`、`zero_safety/command_guard_model.py`、`test/test_command_guard_model.py` |
+旧 follower 已删除。`zero_navigation` 当前没有 Python runtime executable，
+也不发布 `/cmd_vel`。Nav2 composition 是 navigation 模式的 `/cmd_vel` 来源。
 
-未在 `ros2_ws/src/` 下出现 `package.xml` 的名字，例如 `zero_localization`、`zero_navigation`、`zero_gazebo`，都只能视为未实现的未来方向，不能写成当前功能。
+## launch 和 composition
 
-## zero_description
+| 入口 | 所有内容 | 明确不拥有 |
+| --- | --- | --- |
+| `zero_description/display.launch.py` | 独立模型显示、display-only 静态 TF、RViz | 公共仿真 control/mapping/navigation composition |
+| `zero_bringup/bringup_fake.launch.py` | isolated fake controller | 完整 control chain |
+| `zero_gazebo/gazebo_sensors.launch.py` | isolated sensor world、RSP、sensor bridge | propulsion、mapping、navigation |
+| `zero_bringup/control_chain.launch.py` | 一个 RSP、control、safety、fake hardware、adapter、initializer | Gazebo process、bridge、SLAM、Nav2、RViz |
+| `zero_bringup/gazebo_control.launch.py` | navigation world、bridge、control chain、一个 odom relay | SLAM、AMCL、Nav2、RViz |
+| `zero_bringup/gazebo_mapping.launch.py` | control entry、一个 async slam_toolbox、可选 mapping RViz | AMCL、map server、Nav2 |
+| `zero_bringup/gazebo_navigation.launch.py` | control entry、一个 Nav2 bringup、可选 navigation RViz | slam_toolbox、直接 Nav2 node duplication |
 
-### 关键文件
+`gazebo_control.launch.py` 只公开 `world` 和 `config_file`。Mapping 和 navigation
+入口额外公开 `rviz`。Navigation 还要求无默认值的 `map` 参数。
 
-| 文件或目录 | 作用 |
+## 命令链
+
+```text
+/cmd_vel
+  -> zero_control/twist_to_motor_command
+  -> /zero/motor_command_raw
+  -> zero_safety/command_guard
+  -> /zero/motor_command
+  -> zero_hardware/fake_motor_controller
+  -> /zero/motor_state, actual RPM
+  -> zero_gazebo/gazebo_drive_adapter
+  -> /zero/gazebo/cmd_vel
+  -> ros_gz_bridge, ROS_TO_GZ
+  -> /model/zero_usv/cmd_vel
+  -> Fortress DiffDrive System
+```
+
+所有 consumer 从 `zero_bringup/config/v1_sim.yaml` 获取同一组仿真参数。
+adapter 只消费 actual RPM，不消费 target RPM 或 `/cmd_vel`。它遇到 stale、fault、
+非有限、越界或 clock rollback 时的源码策略是发布零 Twist，但运行行为尚未验证。
+
+## `/odom` 和 TF 所有权
+
+| 关系 | 当前源码唯一所有者 |
 | --- | --- |
-| `ros2_ws/src/zero_description/package.xml` | 声明包名、版本、许可证、运行依赖和 `ament_cmake` 构建类型。运行依赖包含 `joint_state_publisher_gui`、`robot_state_publisher`、`rviz2`、`tf2_ros`。 |
-| `ros2_ws/src/zero_description/CMakeLists.txt` | 安装运行资源目录：`launch`、`meshes`、`rviz`、`urdf`。 |
-| `ros2_ws/src/zero_description/launch/display.launch.py` | 模型显示入口。读取安装后的 URDF，启动 `robot_state_publisher`、临时静态 `map -> zero_base_link` TF 和 `rviz2`。 |
-| `ros2_ws/src/zero_description/urdf/robot.urdf` | 当前机器人模型源。机器人名是 `zero_usv`。 |
-| `ros2_ws/src/zero_description/meshes/` | URDF 引用的 STL 网格资源，路径使用 `package://zero_description/meshes/...`。 |
-| `ros2_ws/src/zero_description/rviz/` | 被安装的 RViz 资源目录。当前未见固定 RViz 配置内容。 |
-| `ros2_ws/src/zero_description/cad_export/solidworks/` | CAD 导出来源记录，不由 CMake 安装，不是运行时输入。 |
+| Gazebo `/model/zero_usv/odometry` 到 ROS `/odom` | `ros_gz_bridge.yaml` 的单向 `GZ_TO_ROS` entry |
+| `odom -> zero_base_link` | `zero_gazebo/odom_to_tf_relay` |
+| 船体到 `lidar_link`、`laser_frame`、`imu_link` | `zero_description/robot.urdf` 加一个 RSP |
+| Mapping `map -> odom` | `slam_toolbox` |
+| Navigation `map -> odom` | AMCL through Nav2 composition |
 
-### 设计和技术点
+DiffDrive 的私有 `/model/zero_usv/diff_drive_tf_unbridged` 不在 bridge 配置中。
+adapter 和 relay 都不积分 pose，也不发布 `/odom`。Mapping 和 navigation 不能
+同时拥有 `map -> odom`。
 
-`zero_description` 只负责机器人描述和人工显示检查。它不包含硬件通信、控制、定位、导航、Gazebo 仿真或安全逻辑。
+唯一 ROS robot description 路径是
+`zero_description/urdf/robot.urdf`。其中 LiDAR mount 相对
+`zero_base_link` 的位姿是 `-0.00015 -0.00040397 0.1277`，IMU 相对
+`zero_base_link` 的位姿是 `0.15 0 0.13`。SDF 的 sensor frame 名称和位姿必须
+与这份 URDF 保持一致。
 
-`display.launch.py` 的行为很明确：先通过 `get_package_share_directory('zero_description')` 定位安装后的 share 目录，再读取 `urdf/robot.urdf`，把完整文本作为 `robot_description` 传给 `robot_state_publisher`。同一个 launch 还启动 `tf2_ros/static_transform_publisher`，发布临时 `map -> zero_base_link` 静态 TF，最后启动 `rviz2`。这个 `map` 固定关系是显示用入口，不代表定位链路已经实现。
+## bridge 和 world
 
-URDF 中机器人名是 `zero_usv`，主要 link 包括 `zero_base_link`、`lidar_link`、`left_motor_link`、`right_motor_link`。固定关节把雷达和左右电机 link 接到 `zero_base_link`。网格路径都使用 `package://zero_description/meshes/...`，这和安装后的 ROS2 包解析方式匹配。
+`zero_gazebo/config/ros_gz_bridge.yaml` 有五条 one-way entry：
 
-当前 collision 几何复用 visual STL，适合先做显示和基本结构检查，不应直接理解为已经有仿真优化碰撞模型。`right_motor_link` 的质量和惯性全部为 0，源码注释也提示仍需实物核对。`cad_export/solidworks` 只保留 SolidWorks 导出来源和记录，不参与运行。
+| ROS topic | Gazebo topic | Direction |
+| --- | --- | --- |
+| `/scan` | `/scan` | `GZ_TO_ROS` |
+| `/imu` | `/imu` | `GZ_TO_ROS` |
+| `/clock` | `/clock` | `GZ_TO_ROS` |
+| `/zero/gazebo/cmd_vel` | `/model/zero_usv/cmd_vel` | `ROS_TO_GZ` |
+| `/odom` | `/model/zero_usv/odometry` | `GZ_TO_ROS` |
 
-### 构建和使用命令
+`zero_sensor_smoke.sdf` 继续保留。`zero_navigation_world.sdf` 是三个公共 Gazebo
+入口默认使用的有界静态 world。模型资源目录由
+`IGN_GAZEBO_RESOURCE_PATH` 和 `GZ_SIM_RESOURCE_PATH` 指向。
+
+## Mapping 和 map policy
+
+`zero_mapping/config/slam_toolbox.yaml` 使用 `map`、`odom`、`zero_base_link`、
+`/scan`、0.05 m resolution 和 simulation time。`mapping.rviz` 固定 frame 为
+`map`。
+
+仓库没有生成的 occupancy map 或 pose graph。未来 map saver 必须写到外部：
 
 ```bash
-cd /workspace/ros2_ws
-colcon build --symlink-install --packages-select zero_description
-source install/setup.bash
-ros2 launch zero_description display.launch.py
+ros2 run nav2_map_server map_saver_cli -f <external-prefix>
 ```
 
-### Gotchas
+这只是未来 runtime procedure。生成的 `.yaml`、`.pgm` 和 `.png` 不属于
+`zero_mapping/maps/` source。
 
-1. `display.launch.py` 读取的是安装后的 `urdf/robot.urdf`，不是源码树文件路径。修改 URDF 后需要重新构建或确认安装资源已更新。
-2. `CMakeLists.txt` 只安装 `launch`、`meshes`、`rviz`、`urdf`。新运行资源如果放到别处，必须同步安装规则。
-3. `package.xml` 声明了 `joint_state_publisher_gui`，但当前 display launch 没有启动它。
-4. `rviz/` 是安装目录，但当前没有固定 RViz 工程配置可依赖。
-5. `map -> zero_base_link` 是临时显示 TF。未来定位包若出现，应由定位链路正式管理 map、odom、base 等坐标关系。
+## Navigation 和 external map
 
-## zero_interfaces
+`zero_navigation/config/nav2_params.yaml` 提供 Humble contracts：
 
-### 关键文件
+- AMCL frame 为 `map`、`odom`、`zero_base_link`。
+- map server 的 `yaml_filename` 为空，由 launch 重写。
+- planner ID `GridBased` 使用 `nav2_navfn_planner/NavfnPlanner`。
+- controller ID `FollowPath` 使用 `dwb_core::DWBLocalPlanner`。
+- global costmap 使用 static、obstacle、inflation layers。
+- local costmap 使用 obstacle 和 inflation layers。
+- footprint hull 是 1.20 m × 0.55 m 矩形，padding 单独配置。
+- BT Navigator 使用安装的 Humble 默认 navigate-to-pose behavior tree。
 
-| 文件 | 作用 |
+`gazebo_navigation.launch.py` 要求 `map:=` 为现有小写 `.yaml` 文件的非空绝对
+路径。它以 `slam=False`、`use_sim_time=True`、`autostart=True` 和
+`use_composition=True` 包含一次 Nav2 bringup。
+
+## use_sim_time 和共享配置
+
+`v1_sim.yaml` 为以下节点提供参数：
+
+```text
+robot_state_publisher
+twist_to_motor_command
+command_guard
+fake_motor_controller
+gazebo_drive_adapter
+odom_to_tf_relay
+simulation_safety_initializer
+```
+
+所有 clock consumer 都设置 `use_sim_time: true`。公共值包括 300 RPM、
+1.0 m/s、1.0 rad/s、0.407 m track width、0.05 m wheel radius、左右仿真
+motor sign 为 `1`，以及 command/status/motor-state timeout。2048 encoder ticks
+只属于 fake simulation semantics，不是真实 hardware calibration。
+
+## 当前状态矩阵
+
+| 范围 | 状态 |
 | --- | --- |
-| `ros2_ws/src/zero_interfaces/package.xml` | 声明接口包依赖。包含 `rosidl_default_generators`、`builtin_interfaces`、`rosidl_default_runtime`，并加入 `rosidl_interface_packages` 组。 |
-| `ros2_ws/src/zero_interfaces/CMakeLists.txt` | 调用 `rosidl_generate_interfaces(${PROJECT_NAME} ...)` 生成接口，依赖 `builtin_interfaces`，并 `ament_export_dependencies(rosidl_default_runtime)`。 |
-| `ros2_ws/src/zero_interfaces/msg/MotorCommand.msg` | 左右推进电机目标转速命令。 |
-| `ros2_ws/src/zero_interfaces/msg/MotorState.msg` | STM32 电机控制器反馈结构。 |
-| `ros2_ws/src/zero_interfaces/msg/BatteryState.msg` | 硬件控制器上报的电池状态。 |
-| `ros2_ws/src/zero_interfaces/msg/UsvStatus.msg` | 无人船高层运行模式和故障状态。 |
-| `ros2_ws/src/zero_interfaces/srv/SetControlMode.srv` | 请求切换高层控制模式。 |
+| Phase 1 cleanup and contract alignment | complete |
+| Phase 2 control and safety implementation | `implementation complete, static/build verified` |
+| Phase 3 Gazebo drive, odom, TF implementation | `implementation complete, static/build verified` |
+| Phase 4 mapping resources and composition | `implementation complete, static/build verified` |
+| Phase 5 Nav2 resources and composition | `implementation complete, static/build verified` |
+| Static/build verification for phases 2-5 | Todo 25 complete；ARM64 image、459 source pytest、九包 build、449 package-native results 和安装树已检查 |
 
-### 设计和技术点
+## Runtime criteria
 
-`zero_interfaces` 是当前公共接口包。它只定义消息和服务，不写业务节点、硬件通信、控制算法或 launch。接口注释采用中英双语，并把关键单位写在字段注释里，例如 rpm、ticks、百分比、V、A。
-
-构建配置已经进入接口包形态：`package.xml` 使用 `rosidl_default_generators` 作为构建工具依赖，依赖 `builtin_interfaces`，运行时导出 `rosidl_default_runtime`，并声明 `member_of_group` 为 `rosidl_interface_packages`。`CMakeLists.txt` 通过 `rosidl_generate_interfaces` 生成 `MotorCommand`、`MotorState`、`BatteryState`、`UsvStatus` 和 `SetControlMode`，依赖 `builtin_interfaces`。
-
-### 消息和服务字段摘要
-
-| 接口 | 字段和常量 |
+| Criterion | Status |
 | --- | --- |
-| `MotorCommand.msg` | `stamp`，`left_target_rpm`，`right_target_rpm`。左右目标输出轴转速单位为 rpm。 |
-| `MotorState.msg` | `stamp`，左右目标 rpm，左右实测 rpm，左右霍尔编码器累计计数 `left_encoder_count` 和 `right_encoder_count`，左右带符号 PWM 占空比 `left_pwm_duty` 和 `right_pwm_duty`，左右输出使能 `left_enabled` 和 `right_enabled`，`fault`，`fault_message`。PWM 注释标明范围为 -100 到 100。 |
-| `BatteryState.msg` | `stamp`，`voltage_v`，`current_a`，`state_of_charge_percent`，`low_voltage`，`fault`，`fault_message`。电流正值表示放电，剩余电量范围是 0 到 100。 |
-| `UsvStatus.msg` | 常量 `MODE_UNKNOWN=0`、`MODE_STOP=1`、`MODE_MANUAL=2`、`MODE_AUTO=3`、`MODE_FAULT=4`。字段为 `stamp`、`mode`、`fault`、`fault_code`、`fault_message`。`fault_code` 为 0 表示无故障。 |
-| `SetControlMode.srv` | 请求常量 `MODE_STOP=1`、`MODE_MANUAL=2`、`MODE_AUTO=3`，请求字段 `mode`。响应字段为 `accepted`、`current_mode`、`message`。 |
-
-### 构建和使用命令
-
-```bash
-cd /workspace/ros2_ws
-colcon build --symlink-install --packages-select zero_interfaces
-source install/setup.bash
-ros2 interface show zero_interfaces/msg/MotorCommand
-ros2 interface show zero_interfaces/msg/MotorState
-ros2 interface show zero_interfaces/msg/BatteryState
-ros2 interface show zero_interfaces/msg/UsvStatus
-ros2 interface show zero_interfaces/srv/SetControlMode
-```
-
-### Gotchas
-
-1. 这个包现在有真实 `msg/` 和 `srv/` 文件。旧文档或 AGENTS 中“没有接口文件”的说法已经过时。
-2. 接口字段一旦被其他包消费，字段名、字段类型和常量值就会形成契约，修改前需要同步消费者。
-3. 这些接口描述的是 ROS2 层契约，不等于已经存在硬件节点、控制节点、fake hardware、串口协议或集成测试。
-4. `MotorState.msg` 注释提到 STM32 电机控制器反馈，这是接口语义，不代表当前仓库已有 STM32 通信实现。
-
-## zero_hardware
-
-### 关键文件
-
-| 文件 | 作用 |
-| --- | --- |
-| `ros2_ws/src/zero_hardware/package.xml` | 声明 fake hardware 包依赖。包含 `ament_python`、`rclpy` 和 `zero_interfaces`。 |
-| `ros2_ws/src/zero_hardware/setup.py` | 安装 Python 包，并注册 `fake_motor_controller` console script。 |
-| `ros2_ws/src/zero_hardware/setup.cfg` | 把 ROS2 可执行脚本安装到 `lib/zero_hardware`。 |
-| `ros2_ws/src/zero_hardware/zero_hardware/fake_motor_controller.py` | ROS2 节点入口，连接 `/zero/*` topic 和 service。 |
-| `ros2_ws/src/zero_hardware/zero_hardware/fake_motor_model.py` | 不依赖 ROS2 的 fake 电机状态模型，供节点和测试复用。 |
-| `ros2_ws/src/zero_hardware/test/test_fake_motor_model.py` | 纯模型测试，覆盖 STOP、MANUAL、AUTO、无效模式和编码器计数。 |
-
-### 设计和技术点
-
-`zero_hardware` 当前只实现 fake hardware 最小闭环。节点名是 `fake_motor_controller`，订阅 `/zero/motor_command`，周期发布 `/zero/motor_state`、`/zero/battery_state` 和 `/zero/status`，并提供 `/zero/set_control_mode` 服务。
-
-`fake_motor_model.py` 把可测试的状态推进逻辑从 ROS2 callback 中分离出来。默认模式是 STOP；MANUAL 和 AUTO 会接受目标转速命令，实际转速用简单限幅步进跟随目标；STOP 会忽略新命令，并把目标转速和实际转速逐步拉回 0。当前 fake 电池和状态消息固定发布无故障值，只用于接口链路验证。
-
-这个包不连接 STM32，不实现串口协议、checksum、PID、导航、规划、Gazebo 或真实硬件控制。`MotorState` 中编码器计数和 PWM duty 是模拟值，只用于验证上层 topic/service 契约。
-
-### 构建和使用命令
-
-```bash
-cd /workspace/ros2_ws
-colcon build --symlink-install --packages-select zero_interfaces zero_hardware
-source install/setup.bash
-ros2 run zero_hardware fake_motor_controller
-```
-
-另开终端验证：
-
-```bash
-source /workspace/ros2_ws/install/setup.bash
-ros2 topic list
-ros2 service call /zero/set_control_mode zero_interfaces/srv/SetControlMode "{mode: 2}"
-ros2 topic pub --once /zero/motor_command zero_interfaces/msg/MotorCommand "{left_target_rpm: 120.0, right_target_rpm: 120.0}"
-ros2 topic echo /zero/motor_state
-ros2 service call /zero/set_control_mode zero_interfaces/srv/SetControlMode "{mode: 1}"
-```
-
-### Gotchas
-
-1. 这个包目前是 fake 闭环，不代表已有真实硬件桥接或 STM32 通信。
-2. `/zero/set_control_mode` 只接受 STOP、MANUAL 和 AUTO；无效模式会返回 `accepted=false`，并保持当前模式。
-3. STOP 模式会逐步回零，不是瞬间清零；验收时应观察连续状态反馈。
-4. 运行 ROS2 graph 验证前需要先构建并 source `install/setup.bash`，否则生成的 `zero_interfaces` Python 类型不可用。
-
-## zero_sim
-
-### 关键文件
-
-| 文件 | 作用 |
-| --- | --- |
-| `ros2_ws/src/zero_sim/package.xml` | 声明最小二维仿真包依赖。包含 `ament_python`、`rclpy`、`zero_interfaces`、`builtin_interfaces`、`nav_msgs`、`geometry_msgs` 和 `tf2_ros`。 |
-| `ros2_ws/src/zero_sim/setup.py` | 安装 Python 包，并注册 `simple_usv_simulator` console script。 |
-| `ros2_ws/src/zero_sim/setup.cfg` | 把 ROS2 可执行脚本安装到 `lib/zero_sim`。 |
-| `ros2_ws/src/zero_sim/zero_sim/simple_usv_model.py` | 不依赖 ROS2 的二维平面运动模型，按左右实际 rpm 积分 `x`、`y`、`yaw`，并返回线速度和角速度。 |
-| `ros2_ws/src/zero_sim/zero_sim/simple_usv_simulator.py` | ROS2 节点入口，订阅 `/zero/motor_state`，发布 `/odom` 并广播 `odom -> zero_base_link` TF。 |
-| `ros2_ws/src/zero_sim/test/test_simple_usv_model.py` | 纯模型 pytest 覆盖前进、后退、转向、零 rpm 和非零航向积分。 |
-
-### 设计和技术点
-
-`zero_sim` 当前只实现最小二维运动仿真。节点名是 `simple_usv_simulator`，订阅 `zero_interfaces/msg/MotorState` 的 `/zero/motor_state`，只使用 `left_actual_rpm` 和 `right_actual_rpm`，不绕过 fake hardware 直接读取命令。
-
-纯模型 `simple_usv_model.py` 没有 ROS2 import。默认参数是 `rpm_to_linear_velocity=0.001`、`rpm_difference_to_angular_velocity=0.002`，线速度取左右实际 rpm 平均值乘线速度系数，角速度取 `(right_actual_rpm - left_actual_rpm)` 乘差速角速度系数。yaw 为 0 时左右同正 rpm 会沿 +x 前进；z、roll、pitch 保持 0，orientation 由平面 yaw 转四元数。
-
-`simple_usv_simulator.py` 启动后即使用零 rpm 周期发布 `/odom` 和 `odom -> zero_base_link` TF，因此还没收到第一条 `/zero/motor_state` 时也能看到静止里程计。它只发布局部 `odom` 链路，不发布 `map -> odom` 或 `map -> zero_base_link`。
-
-### 构建和使用命令
-
-```bash
-cd /workspace/ros2_ws
-colcon build --symlink-install --packages-select zero_interfaces zero_hardware zero_sim
-source install/setup.bash
-ros2 run zero_sim simple_usv_simulator
-```
-
-配合 fake hardware 验证：
-
-```bash
-source /workspace/ros2_ws/install/setup.bash
-ros2 run zero_hardware fake_motor_controller
-ros2 topic echo /odom
-ros2 run tf2_ros tf2_echo odom zero_base_link
-```
-
-### Gotchas
-
-1. 这个包不是 Gazebo、水动力、定位、导航、SLAM、路径规划或真实硬件桥接。
-2. `/odom` 来自 `/zero/motor_state` 中的实际 rpm；如果 fake hardware 处于 STOP 且实际 rpm 为 0，位姿会保持静止。
-3. 运行仿真时不能同时启动 `zero_description/launch/display.launch.py` 中的静态 `map -> zero_base_link`，否则 `zero_base_link` 会有两个父坐标系。
-
-## zero_bringup
-
-### 关键文件
-
-| 文件 | 作用 |
-| --- | --- |
-| `ros2_ws/src/zero_bringup/package.xml` | 声明启动编排包依赖。包含 `ament_python`、`launch`、`launch_ros`、`zero_hardware`、`zero_sim`、`zero_description`、`robot_state_publisher` 和 `rviz2`。 |
-| `ros2_ws/src/zero_bringup/setup.py` | 安装 Python 包、包资源标记、`package.xml` 和 fake/sim launch 文件。 |
-| `ros2_ws/src/zero_bringup/setup.cfg` | 保持 `ament_python` 脚本安装路径约定。当前包不注册 console script。 |
-| `ros2_ws/src/zero_bringup/launch/bringup_fake.launch.py` | fake 系统一键启动入口，启动 `zero_hardware` 的 `fake_motor_controller`。 |
-| `ros2_ws/src/zero_bringup/launch/bringup_sim.launch.py` | sim 系统一键启动入口，读取安装后的 `zero_description/urdf/robot.urdf`，启动 `robot_state_publisher`、`fake_motor_controller`、`simple_usv_simulator` 和 `rviz2`。 |
-
-### 设计和技术点
-
-`zero_bringup` 当前只负责启动编排。`bringup_fake.launch.py` 只拉起已有 `zero_hardware` 节点，不重新定义 topic、service、消息、服务、电机模型、硬件通信、控制算法或仿真模型。
-
-fake 系统入口命令是 `ros2 launch zero_bringup bringup_fake.launch.py`。启动后实际 topic 和 service 仍由 `zero_hardware` 的 `fake_motor_controller` 提供：订阅 `/zero/motor_command`，发布 `/zero/motor_state`、`/zero/battery_state`、`/zero/status`，并提供 `/zero/set_control_mode`。
-
-sim 系统入口命令是 `ros2 launch zero_bringup bringup_sim.launch.py`。这个入口不会包含 `zero_description/launch/display.launch.py`，也不会启动 `static_transform_publisher`；URDF 固定关节由 `robot_state_publisher` 发布，船体运动 TF 由 `zero_sim` 发布为 `odom -> zero_base_link`。
-
-### 构建和使用命令
-
-```bash
-cd /workspace/ros2_ws
-colcon build --symlink-install --packages-select zero_interfaces zero_description zero_hardware zero_sim zero_bringup
-source install/setup.bash
-ros2 launch zero_bringup bringup_fake.launch.py
-ros2 launch zero_bringup bringup_sim.launch.py
-```
-
-另开终端验证：
-
-```bash
-source /workspace/ros2_ws/install/setup.bash
-ros2 topic list
-ros2 service list
-ros2 service call /zero/set_control_mode zero_interfaces/srv/SetControlMode "{mode: 2}"
-ros2 topic pub --once /zero/motor_command zero_interfaces/msg/MotorCommand "{left_target_rpm: 120.0, right_target_rpm: 120.0}"
-ros2 topic echo /zero/motor_state
-ros2 service call /zero/set_control_mode zero_interfaces/srv/SetControlMode "{mode: 1}"
-```
-
-### Gotchas
-
-1. 这个包是系统入口整理，不是新的业务节点包；不要在这里放电机模型、硬件通信、控制算法或仿真模型。
-2. launch 文件不 remap `/zero/*` 名称，命名契约继续由 `zero_hardware` 和 `zero_interfaces` 维护。
-3. `bringup_sim.launch.py` 读取安装后的 URDF；修改 `zero_description` 资源后需要重新构建或确认安装资源已更新。
-4. 修改 launch 文件后需要重新构建或确认安装资源已更新，再运行 `ros2 launch`。
-
-## zero_control
-
-### 关键文件
-
-| 文件 | 作用 |
-| --- | --- |
-| `ros2_ws/src/zero_control/package.xml` | 声明控制转换包依赖。包含 `ament_python`、`rclpy`、`geometry_msgs` 和 `zero_interfaces`。 |
-| `ros2_ws/src/zero_control/setup.py` | 安装 Python 包，并注册 `twist_to_motor_command` console script。 |
-| `ros2_ws/src/zero_control/setup.cfg` | 把 ROS2 可执行脚本安装到 `lib/zero_control`。 |
-| `ros2_ws/src/zero_control/zero_control/twist_to_motor_model.py` | 不依赖 ROS2 的 `/cmd_vel` 到左右目标 rpm 转换模型，供节点和测试复用。 |
-| `ros2_ws/src/zero_control/zero_control/twist_to_motor_command.py` | ROS2 节点入口，订阅 `/cmd_vel`，发布 `zero_interfaces/msg/MotorCommand`。 |
-| `ros2_ws/src/zero_control/test/test_twist_to_motor_model.py` | 纯模型 pytest 覆盖前进、后退、转向、限幅、零输入、非法数值和参数边界。 |
-
-### 设计和技术点
-
-`zero_control` 当前只负责上位机控制转换。节点名是 `twist_to_motor_command`，订阅 `geometry_msgs/msg/Twist` 的 `/cmd_vel`，把 `linear.x` 和 `angular.z` 转换为 `MotorCommand.msg` 的 `left_target_rpm` 与 `right_target_rpm`。
-
-转换模型先按 `max_linear_mps` 和 `max_angular_radps` 对输入限幅，再用 `track_width_m` 形成左右差速：`left = linear - angular * track_width_m / 2`，`right = linear + angular * track_width_m / 2`。rpm 按 `max_linear_mps -> max_rpm` 的比例换算，并最终夹到 `[-max_rpm, max_rpm]`。这个符号约定和 `zero_sim` 中 `(right_actual_rpm - left_actual_rpm)` 为正角速度的约定一致。
-
-默认输出 topic 是 `/zero/motor_command_raw`，用于后续接入 `zero_safety`。单独调试 fake hardware 时，可以通过参数把 `output_topic` 改为 `/zero/motor_command`。该包不实现急停、控制模式保护、命令超时归零、硬件 watchdog、STM32 通信或导航逻辑。
-
-### 构建和使用命令
-
-```bash
-cd /workspace/ros2_ws
-colcon build --symlink-install --packages-select zero_interfaces zero_control
-source install/setup.bash
-ros2 run zero_control twist_to_motor_command
-```
-
-单独接 fake hardware 调试时：
-
-```bash
-source /workspace/ros2_ws/install/setup.bash
-ros2 run zero_control twist_to_motor_command --ros-args -p output_topic:=/zero/motor_command
-ros2 topic pub --once /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.3}, angular: {z: 0.0}}"
-ros2 topic echo /zero/motor_command --once
-```
-
-### Gotchas
-
-1. 默认输出是 `/zero/motor_command_raw`，不能在集成安全门后绕过 `zero_safety` 直发 `/zero/motor_command`。
-2. `zero_control` 不修改也不复制 `zero_interfaces/msg/MotorCommand`，字段契约仍由 `zero_interfaces` 维护。
-3. NaN 或 inf 的 `/cmd_vel` 输入会产生零 rpm，并在节点日志中可观测。
-4. 最终安全归零不属于本包职责；命令超时、急停和模式保护应由 `zero_safety` 或硬件层 watchdog 验收。
-
-## zero_safety
-
-### 关键文件
-
-| 文件 | 作用 |
-| --- | --- |
-| `ros2_ws/src/zero_safety/package.xml` | 声明安全门包依赖。包含 `ament_python`、`rclpy`、`std_msgs`、`std_srvs` 和 `zero_interfaces`。 |
-| `ros2_ws/src/zero_safety/setup.py` | 安装 Python 包，并注册 `command_guard` console script。 |
-| `ros2_ws/src/zero_safety/setup.cfg` | 把 ROS2 可执行脚本安装到 `lib/zero_safety`。 |
-| `ros2_ws/src/zero_safety/zero_safety/command_guard.py` | ROS2 节点入口，连接 raw 命令、模式状态、急停 topic、release service 和受保护输出。 |
-| `ros2_ws/src/zero_safety/zero_safety/command_guard_model.py` | 不依赖 ROS2 的命令安全门模型，供节点和测试复用。 |
-| `ros2_ws/src/zero_safety/test/test_command_guard_model.py` | 纯模型 pytest 覆盖默认安全状态、超时、急停锁存和 release、限幅、STOP/MANUAL/AUTO 模式来源、非法 rpm 和参数边界。 |
-
-### 设计和技术点
-
-`zero_safety` 当前实现第一版命令安全门。节点名是 `command_guard`，订阅 `zero_interfaces/msg/MotorCommand` 的 `/zero/motor_command_raw`，发布受保护的 `/zero/motor_command`，并把安全干预发布到 `zero_interfaces/msg/UsvStatus` 的 `/zero/safety_status`。控制模式来源是现有 `/zero/status`，这意味着模式权威仍由 fake hardware 或后续真实模式管理节点广播，`zero_safety` 不隐式读取 hardware 内部状态。
-
-急停输入使用 `std_msgs/msg/Bool` 的 `/zero/e_stop`，release 使用 `std_srvs/srv/Trigger` 的 `/zero/release_e_stop`。`command_guard` 重启后默认安全：在收到明确急停状态、有效模式和新鲜命令前持续输出零 rpm。急停置 true 后会锁存 fault；release 只在急停输入为 false、模式允许当前来源、当前命令新鲜有效且左右 rpm 都为 0 时成功。release 成功后会清掉 release 前命令，必须收到 release 之后的新命令才会恢复非零输出。
-
-模式来源通过参数 `input_source` 声明，默认 `auto`。AUTO 模式只允许 `auto` 来源；MANUAL 模式允许 `manual` 或 `debug` 来源；STOP、FAULT 和 UNKNOWN 都会强制输出零 rpm。所有输出都会按 `max_command_rpm` 做最终限幅，命令超时、急停、非法 rpm、模式阻塞和限幅都会反映到 `/zero/safety_status`。
-
-### 构建和使用命令
-
-```bash
-cd /workspace/ros2_ws
-colcon build --symlink-install --packages-select zero_interfaces zero_safety
-source install/setup.bash
-ros2 run zero_safety command_guard
-```
-
-配合 `zero_control` 和 fake hardware 验证：
-
-```bash
-source /workspace/ros2_ws/install/setup.bash
-ros2 run zero_hardware fake_motor_controller
-ros2 run zero_safety command_guard
-ros2 run zero_control twist_to_motor_command --ros-args -p output_topic:=/zero/motor_command_raw
-ros2 topic pub --once /zero/e_stop std_msgs/msg/Bool "{data: false}"
-ros2 service call /zero/set_control_mode zero_interfaces/srv/SetControlMode "{mode: 3}"
-ros2 topic pub --once /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}, angular: {z: 0.1}}"
-ros2 topic echo /zero/motor_command_raw --once
-ros2 topic echo /zero/motor_command --once
-ros2 topic echo /zero/safety_status --once
-```
-
-### Gotchas
-
-1. `/zero/e_stop` 没有收到明确 false 前，`command_guard` 会保持零输出；这是重启默认安全的一部分。
-2. `/zero/release_e_stop` 使用 ROS2 Trigger，只适合当前开发闭环。真实部署需要用 SROS2、隔离的 ROS domain 或硬件权威信号保护 release 权限，不能把普通 ROS graph 发布者视为可信安全边界。
-3. release 前当前命令必须是零 rpm，release 后还需要新的合法命令才会输出非零 rpm，避免解除急停后沿用旧命令立即动作。
-4. 当前 fake hardware 尚未实现 `command_guard` 死亡后的最终命令 watchdog；真实硬件或后续硬件层仍必须在最终命令停止刷新时归零。
-5. 当前 `zero_bringup` 入口尚未自动启动 `zero_control` 或 `zero_safety`；完整链路验收需要手动启动，或后续另行更新 launch 编排。
-
-## 维护检查清单
-
-1. 先用 `ros2_ws/src/**/package.xml` 重新生成包清单，再更新本备忘。
-2. 新增包只有在包目录和 `package.xml` 真实存在后，才移动到当前包清单。
-3. 更新 `zero_description` 时，同步检查 `CMakeLists.txt` 安装目录、`display.launch.py` 读取路径、URDF link 名和 mesh 路径。
-4. 更新 URDF 惯性或碰撞模型时，特别复核 `right_motor_link` 的零质量和零惯性，以及 collision 是否仍复用 visual STL。
-5. 更新 `zero_interfaces` 时，同步检查 `package.xml`、`CMakeLists.txt`、每个 msg/srv 字段、单位注释和常量值。
-6. 更新 `zero_sim` 时，同步检查纯模型测试、`/odom`、`odom -> zero_base_link` TF 和 `bringup_sim.launch.py` 是否仍避免静态 `map -> zero_base_link`。
-7. 更新 `zero_safety` 时，同步检查 release 条件、急停锁存、超时归零、模式来源、`/zero/safety_status` 和 raw/protected topic 链路。
-8. 不从路线图反推当前实现。真实硬件、定位、导航、Gazebo 和集成测试，只有源码路径和包清单出现后才能写成已实现。
-9. 维护命令只写当前包可以直接对应的构建、launch 或 `ros2 interface show` 命令，不写未来包的假入口。
+| Fortress plugin load | `NOT RUN / UNVERIFIED` |
+| Motion | `NOT RUN / UNVERIFIED` |
+| `/odom` | `NOT RUN / UNVERIFIED` |
+| TF uniqueness | `NOT RUN / UNVERIFIED` |
+| SLAM quality | `NOT RUN / UNVERIFIED` |
+| Map reload | `NOT RUN / UNVERIFIED` |
+| AMCL localization | `NOT RUN / UNVERIFIED` |
+| NavFn planning | `NOT RUN / UNVERIFIED` |
+| DWB planning | `NOT RUN / UNVERIFIED` |
+| Avoidance | `NOT RUN / UNVERIFIED` |
+| Goal arrival | `NOT RUN / UNVERIFIED` |
+| Stop criterion | `NOT RUN / UNVERIFIED` |
+
+## 历史验证记录，原文保留
+
+以下内容属于早期八包基线，不代表当前 phases 2-5 验证结果：
+
+| 范围 | 静态证据 | 当前边界 |
+| --- | --- | --- |
+| 三个核心纯模型文件 | 共有 34 个顶层 `def test_` 函数，分别为 fake motor 7、twist 转换 13、command guard 14，即 7 + 13 + 14。 | 本次在隔离容器中运行仓库级 Pytest，相关测试全部包含在 55/55 passed 结果中；八包 clean build 通过。 |
+| `zero_navigation` 纯 Python 测试 | 四个测试模块共有 21 个 ROS-free 顶层测试函数，覆盖输入、控制、新鲜度、安全状态和参数校验。 | 21 个测试包含在本次 55/55 passed 结果中；未执行 navigation launch、ROS graph 或端到端 smoke。 |
+| CMake lint 配置 | `zero_description`、`zero_interfaces`、`zero_gazebo` 等包在 `BUILD_TESTING` 下配置 `ament_lint_auto`。 | lint 配置不等于 Gazebo 或 ROS 运行时验证。 |
+| 功能集成层 | 递归检查 `ros2_ws/src/` 后，没有发现 `launch_testing` 标记，也没有自动化 ROS graph、launch 或端到端测试。 | 该行属于早期基线；当前已有 navigation composition source，但 Gazebo topic、TF 和 navigation runtime 仍未执行。 |
+
+## 维护检查
+
+1. 从 `package.xml` 重新枚举包，不从路线图推断。
+2. 从 launch、YAML、SDF、URDF、CMake 和 setup install rules 核对资源。
+3. 不把 static source feasibility 写成 runtime success。
+4. 不把测试 fixture、pose graph 或空目录写成生成地图。
+5. 只有重跑 Todo 25 的完整非运行时门禁后，才维持 `static/build verified`。
