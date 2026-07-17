@@ -1,0 +1,51 @@
+robot_state_publisher:
+  ros__parameters:
+    use_sim_time: true
+
+twist_to_motor_command:
+  ros__parameters:
+    use_sim_time: true
+    max_rpm: 300.0
+    max_linear_mps: 1.0
+    max_angular_radps: 1.0
+    track_width_m: 0.407
+    wheel_radius_m: 0.05
+    left_motor_sign: 1
+    right_motor_sign: 1
+    command_timeout_seconds: 0.5
+
+command_guard:
+  ros__parameters:
+    use_sim_time: true
+    max_rpm: 300.0
+    command_timeout_seconds: 0.5
+    status_timeout_seconds: 0.5
+    motor_state_timeout_seconds: 0.5
+
+fake_motor_controller:
+  ros__parameters:
+    use_sim_time: true
+    max_rpm: 300.0
+    command_timeout_seconds: 0.5
+
+gazebo_drive_adapter:
+  ros__parameters:
+    use_sim_time: true
+    max_rpm: 300.0
+    max_linear_mps: 1.0
+    max_angular_radps: 1.0
+    track_width_m: 0.407
+    wheel_radius_m: 0.05
+    left_motor_sign: 1
+    right_motor_sign: 1
+    motor_state_timeout_seconds: 0.5
+
+odom_to_tf_relay:
+  ros__parameters:
+    use_sim_time: true
+
+simulation_safety_initializer:
+  ros__parameters:
+    use_sim_time: true
+    status_timeout_seconds: 0.5
+    motor_state_timeout_seconds: 0.5
