@@ -22,6 +22,8 @@
     </light>
 
     <model name="water_plane_placeholder">
+      <!-- Minimal water plane for sensor smoke checks, not a hydrodynamics model. -->
+      <!-- 传感器 smoke 检查使用的最小水面，不是水动力模型。 -->
       <static>true</static>
       <link name="water_plane_link">
         <collision name="water_plane_collision">
@@ -74,6 +76,8 @@
     </model>
 
     <include>
+      <!-- Spawn the packaged Zero USV model to exercise installed model:// lookup. -->
+      <!-- 生成本包 Zero USV 模型，用于验证安装后的 model:// 查找。 -->
       <uri>model://zero_usv</uri>
       <pose>0 0 0.18 0 0 0</pose>
     </include>
