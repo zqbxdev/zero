@@ -1,8 +1,6 @@
 AGENTS.md
 README.md
-!/ros2_ws/src/zero_mapping/README.md
 !/ros2_ws/src/zero_mapping/maps/README.md
-!/ros2_ws/src/zero_navigation/README.md
 /ros2_ws/src/zero_mapping/maps/*.pgm
 /ros2_ws/src/zero_mapping/maps/*.png
 /ros2_ws/src/zero_mapping/maps/*.yaml
@@ -16,8 +14,6 @@ ros2_ws/install/
 ros2_ws/log/
 
 docs/project-structure.md
-docs/development-start-guide.md
 docs/development-standards.md
 docs/stm32-lower-computer-developer-guide.md
-
-ros2_ws/src/zero_localization/
+/docs/control_safety_hardware_overview.md
