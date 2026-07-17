@@ -1,17 +1,47 @@
+# Gazebo sensor streams exported into ROS 2 for perception smoke tests.
+# 面向感知 smoke 测试导出到 ROS 2 的 Gazebo 传感器流。
 - ros_topic_name: "/scan"
   gz_topic_name: "/scan"
   ros_type_name: "sensor_msgs/msg/LaserScan"
   gz_type_name: "ignition.msgs.LaserScan"
+  subscriber_queue: 10
+  publisher_queue: 10
   direction: GZ_TO_ROS
 
 - ros_topic_name: "/imu"
   gz_topic_name: "/imu"
   ros_type_name: "sensor_msgs/msg/Imu"
   gz_type_name: "ignition.msgs.IMU"
+  subscriber_queue: 10
+  publisher_queue: 10
   direction: GZ_TO_ROS
 
 - ros_topic_name: "/clock"
   gz_topic_name: "/clock"
   ros_type_name: "rosgraph_msgs/msg/Clock"
   gz_type_name: "ignition.msgs.Clock"
+  subscriber_queue: 10
+  publisher_queue: 10
+  direction: GZ_TO_ROS
+
+# Protected ROS command stream imported into Gazebo DiffDrive.
+# 导入 Gazebo DiffDrive 的 ROS 安全后命令流。
+- ros_topic_name: "/zero/gazebo/cmd_vel"
+  gz_topic_name: "/model/zero_usv/cmd_vel"
+  ros_type_name: "geometry_msgs/msg/Twist"
+  gz_type_name: "ignition.msgs.Twist"
+  subscriber_queue: 10
+  publisher_queue: 10
+  direction: ROS_TO_GZ
+
+# Gazebo DiffDrive odometry exported for navigation and TF relay.
+# 为导航和 TF 中继导出的 Gazebo DiffDrive 里程计。
+# DiffDrive TF stays unbridged; odom_to_tf_relay republishes the validated TF.
+# DiffDrive TF 不直接桥接；由 odom_to_tf_relay 重新发布校验后的 TF。
+- ros_topic_name: "/odom"
+  gz_topic_name: "/model/zero_usv/odometry"
+  ros_type_name: "nav_msgs/msg/Odometry"
+  gz_type_name: "ignition.msgs.Odometry"
+  subscriber_queue: 10
+  publisher_queue: 10
   direction: GZ_TO_ROS
