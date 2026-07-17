@@ -9,17 +9,27 @@
 
   <buildtool_depend>ament_python</buildtool_depend>
 
+  <exec_depend>ament_index_python</exec_depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
-  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>nav2_bringup</exec_depend>
   <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>ros_gz_bridge</exec_depend>
+  <exec_depend>ros_gz_sim</exec_depend>
   <exec_depend>rviz2</exec_depend>
+  <exec_depend>slam_toolbox</exec_depend>
+  <exec_depend>zero_control</exec_depend>
   <exec_depend>zero_description</exec_depend>
+  <exec_depend>zero_gazebo</exec_depend>
   <exec_depend>zero_hardware</exec_depend>
-  <exec_depend>zero_sim</exec_depend>
+  <exec_depend>zero_mapping</exec_depend>
+  <exec_depend>zero_navigation</exec_depend>
+  <exec_depend>zero_safety</exec_depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
+  <test_depend>python3-pytest</test_depend>
+  <test_depend>python3-yaml</test_depend>
 
   <export>
     <build_type>ament_python</build_type>
